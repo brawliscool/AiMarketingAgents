@@ -13,18 +13,27 @@ import {
   ChartLineUp,
   CheckCircle,
   Command,
+  ClipboardText,
   Flask,
   GearSix,
+  Hash,
   HouseLine,
   Lightning,
   List,
   MagnifyingGlass,
+  Megaphone,
   PaperPlaneTilt,
   PlugsConnected,
   Plus,
+  Play,
+  ShieldWarning,
   SquaresFour,
+  Storefront,
+  Square,
+  Target,
   TrendUp,
   UsersThree,
+  VideoCamera,
   Warning,
 } from "@phosphor-icons/react";
 import "./styles.css";
@@ -89,6 +98,34 @@ const calendarDays = [
   { day: 4, label: "Fri", next: true },
   { day: 5, label: "Sat", next: true },
   { day: 6, label: "Sun", next: true },
+];
+
+const briefBuilderFields = [
+  ["Business name", "Northstar Fitness Studio"],
+  ["Industry", "Local wellness and personal training"],
+  ["Target customer", "Busy professionals who want guided strength routines"],
+  ["Goal", "Book 30 intro consultations this month"],
+  ["Platforms", "TikTok, Facebook, Instagram Reels"],
+  ["Brand tone", "Direct, encouraging, practical"],
+  ["Posting schedule", "5 posts weekly, mornings and Sunday recap"],
+  ["Things to avoid", "Hard-sell language, unrealistic transformation claims"],
+];
+
+const liveAgentCards = [
+  ["Research Agent", "Finding audience pain points", "Running", 72, Target],
+  ["Content Agent", "Writing TikTok and Facebook post ideas", "Review", 58, ClipboardText],
+  ["Video Agent", "Drafting short-form video scripts", "Running", 44, VideoCamera],
+  ["Ad Agent", "Testing hooks and offers", "Queued", 26, Megaphone],
+  ["Calendar Agent", "Scheduling content for the week", "Done", 100, CalendarBlank],
+];
+
+const memoryCards = [
+  ["Brand voice", "Clear, motivating, low-hype", Command],
+  ["Offer details", "$49 intro consult with trainer roadmap", Storefront],
+  ["Saved hashtags", "#StrengthForBusyPeople #FitAfterWork", Hash],
+  ["Competitors", "Local gyms, boutique pilates, online coaches", ChartLineUp],
+  ["Customer avatar", "Time-starved professional, age 28-44", UsersThree],
+  ["Current campaign goal", "Convert local leads into consult bookings", Target],
 ];
 
 function MagneticButton({ className, children, ...props }) {
@@ -207,6 +244,282 @@ function PageShell({ title, subtitle }) {
       <h1>{title}</h1>
       <p>{subtitle}</p>
     </MotionPanel>
+  );
+}
+
+const agentRosterSeed = [
+  {
+    id: "director",
+    name: "Marketing Director",
+    role: "Strategy, prioritization, and handoffs",
+    icon: Command,
+    active: true,
+    activeActivity: "Mapping the next launch angle and assigning the work.",
+    idleActivity: "Waiting for a new brief before resuming strategy.",
+  },
+  {
+    id: "writer",
+    name: "Content Writer",
+    role: "Copy, posts, and launch sequences",
+    icon: ClipboardText,
+    active: true,
+    activeActivity: "Writing a launch sequence for the new product.",
+    idleActivity: "Paused while waiting for the next prompt.",
+  },
+  {
+    id: "social",
+    name: "Social Media Manager",
+    role: "Posting schedule and channel timing",
+    icon: PaperPlaneTilt,
+    active: true,
+    activeActivity: "Scheduling posts for this week’s campaign.",
+    idleActivity: "Standing by for the next content batch.",
+  },
+  {
+    id: "analytics",
+    name: "Analytics Agent",
+    role: "Performance review and insight tracking",
+    icon: ChartLineUp,
+    active: true,
+    activeActivity: "Analyzing campaign performance and trends.",
+    idleActivity: "Idle while it waits for fresh data.",
+  },
+  {
+    id: "video",
+    name: "Video Creator",
+    role: "Short-form script and edit support",
+    icon: VideoCamera,
+    active: false,
+    activeActivity: "Drafting a short-form video hook and shot list.",
+    idleActivity: "Waiting for script notes and asset approval.",
+  },
+  {
+    id: "seo",
+    name: "SEO Specialist",
+    role: "Search opportunities and content gaps",
+    icon: Target,
+    active: false,
+    activeActivity: "Reviewing page structure and ranking opportunities.",
+    idleActivity: "Idle and ready to pick up the next keyword set.",
+  },
+];
+
+function AgentsPage() {
+  const [roster, setRoster] = useState(agentRosterSeed);
+
+  const setAgentActive = (id, nextActive) => {
+    setRoster((current) =>
+      current.map((agent) =>
+        agent.id === id
+          ? {
+              ...agent,
+              active: nextActive,
+            }
+          : agent,
+      ),
+    );
+  };
+
+  const activeCount = roster.filter((agent) => agent.active).length;
+
+  return (
+    <div className="agents-page">
+      <MotionPanel className="panel agents-hero">
+        <div>
+          <div className="section-kicker">Agents</div>
+          <h1>Agents</h1>
+          <p>Start or stop each agent, see what it is doing, and watch the active ones glow green.</p>
+        </div>
+        <div className="agents-summary">
+          <strong>{activeCount}</strong>
+          <span>active now</span>
+        </div>
+      </MotionPanel>
+
+      <MotionPanel className="panel agents-board">
+        <div className="panel-title">
+          <h2>Live agent roster</h2>
+          <span>Realtime</span>
+        </div>
+
+        <motion.div className="agents-list" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
+          {roster.map((agent, index) => {
+            const Icon = agent.icon;
+            const isActive = agent.active;
+
+            return (
+              <motion.article
+                className={isActive ? "agent-entry active" : "agent-entry"}
+                key={agent.id}
+                style={{ "--index": index }}
+                variants={itemVariants}
+                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.34)" }}
+                layout
+              >
+                <span className={isActive ? "agent-led active" : "agent-led inactive"} aria-hidden="true" />
+                <div className="agent-entry-icon">
+                  <Icon size={22} />
+                </div>
+
+                <div className="agent-entry-copy">
+                  <div className="agent-entry-top">
+                    <div>
+                      <h3>{agent.name}</h3>
+                      <p>{agent.role}</p>
+                    </div>
+                    <span className={isActive ? "agent-state active" : "agent-state inactive"}>{isActive ? "Active" : "Inactive"}</span>
+                  </div>
+                  <div className="agent-activity">{isActive ? agent.activeActivity : agent.idleActivity}</div>
+                </div>
+
+                <div className="agent-entry-actions">
+                  <button
+                    type="button"
+                    className="agent-action stop"
+                    onClick={() => setAgentActive(agent.id, false)}
+                    disabled={!isActive}
+                    aria-disabled={!isActive}
+                  >
+                    <Square size={14} weight="fill" />
+                    Stop
+                  </button>
+                  <button
+                    type="button"
+                    className="agent-action start"
+                    onClick={() => setAgentActive(agent.id, true)}
+                    disabled={isActive}
+                    aria-disabled={isActive}
+                  >
+                    <Play size={14} weight="fill" />
+                    Start
+                  </button>
+                </div>
+              </motion.article>
+            );
+          })}
+        </motion.div>
+      </MotionPanel>
+    </div>
+  );
+}
+
+function BriefsPage() {
+  return (
+    <div className="briefs-page">
+      <motion.section className="briefs-hero panel" variants={itemVariants}>
+        <div className="briefs-hero-copy">
+          <span className="purple-kicker">Mission control</span>
+          <h1>Agent Builder</h1>
+          <p>Build your marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
+          <div className="hero-actions">
+            <MagneticButton className="primary-button large" type="button">
+              <Plus size={20} />
+              Create agent brief
+            </MagneticButton>
+            <MagneticButton className="secondary-button large" type="button">
+              <UsersThree size={20} />
+              View live agents
+            </MagneticButton>
+          </div>
+        </div>
+
+        <div className="briefs-radar" aria-hidden="true">
+          <motion.span animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
+          <div>
+            <strong>5</strong>
+            <small>agents online</small>
+          </div>
+        </div>
+      </motion.section>
+
+      <div className="briefs-dashboard-grid">
+        <MotionPanel className="panel builder-card">
+          <div className="panel-title">
+            <h2>Agent builder</h2>
+            <span>Draft</span>
+          </div>
+          <div className="builder-form-grid">
+            {briefBuilderFields.map(([label, value], index) => (
+              <motion.label
+                className={index === 2 || index === 7 ? "builder-field wide" : "builder-field"}
+                key={label}
+                whileHover={{ y: -2, borderColor: "rgba(177, 108, 255, 0.34)" }}
+              >
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </motion.label>
+            ))}
+          </div>
+          <div className="builder-footer">
+            <div className="builder-check">
+              <CheckCircle size={20} weight="fill" />
+              Brief ready for agent handoff
+            </div>
+            <MagneticButton className="secondary-button" type="button">
+              <ShieldWarning size={18} />
+              Review guardrails
+            </MagneticButton>
+          </div>
+        </MotionPanel>
+
+        <MotionPanel className="panel live-workspace">
+          <div className="panel-title">
+            <h2>Live Agent Workspace</h2>
+            <span>Realtime</span>
+          </div>
+          <div className="live-agent-grid">
+            {liveAgentCards.map(([name, task, status, progress, Icon], index) => (
+              <motion.article
+                className="live-agent-card"
+                key={name}
+                style={{ "--index": index }}
+                variants={itemVariants}
+                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.36)" }}
+                layout
+              >
+                <div className="live-agent-head">
+                  <span className="agent-icon small">
+                    <Icon size={19} />
+                  </span>
+                  <span className={`status-pill ${status.toLowerCase()}`}>{status}</span>
+                </div>
+                <h3>{name}</h3>
+                <p>{task}</p>
+                <div className="progress-meta">
+                  <span>Progress</span>
+                  <strong>{progress}%</strong>
+                </div>
+                <div className="agent-progress" aria-hidden="true">
+                  <motion.span
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: progress / 100 }}
+                    transition={{ duration: 0.9, delay: 0.1 + index * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </MotionPanel>
+      </div>
+
+      <MotionPanel className="panel memory-panel">
+        <div className="panel-title">
+          <h2>Agent Memory / Instructions</h2>
+          <span>Saved context</span>
+        </div>
+        <div className="memory-grid">
+          {memoryCards.map(([title, copy, Icon]) => (
+            <motion.article className="memory-card" key={title} whileHover={{ y: -3, backgroundColor: "rgba(177, 108, 255, 0.045)" }}>
+              <Icon size={22} weight="duotone" />
+              <div>
+                <strong>{title}</strong>
+                <span>{copy}</span>
+              </div>
+            </motion.article>
+          ))}
+        </div>
+      </MotionPanel>
+    </div>
   );
 }
 
@@ -661,8 +974,8 @@ function App() {
         {settings.notifications && <WarningBar />}
       </>
     ),
-    Briefs: <PageShell title="Briefs" subtitle="A lightweight briefs page." />,
-    Agents: <PageShell title="Agents" subtitle="A lightweight agents page." />,
+    Briefs: <BriefsPage />,
+    Agents: <AgentsPage />,
     Campaigns: <PageShell title="Campaigns" subtitle="A lightweight campaigns page." />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <CalendarPanel />,
