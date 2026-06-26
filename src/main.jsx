@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AnimatePresence,
@@ -72,6 +72,23 @@ const launches = [
   ["Jun 27", "Launch creator-led retargeting", "Paid social", "Ready", "Mara Voss"],
   ["Jun 29", "Refresh onboarding nurture", "Lifecycle", "Needs review", "Ilya Ren"],
   ["Jul 02", "Test founder note sequence", "Email", "Drafting", "Theo Kline"],
+];
+
+const calendarDays = [
+  { day: 23, label: "Mon", muted: true },
+  { day: 24, label: "Tue", muted: true },
+  { day: 25, label: "Wed", muted: true },
+  { day: 26, label: "Thu", active: true },
+  { day: 27, label: "Fri", event: "Launch" },
+  { day: 28, label: "Sat" },
+  { day: 29, label: "Sun" },
+  { day: 30, label: "Mon" },
+  { day: 1, label: "Tue", next: true, event: "Sync" },
+  { day: 2, label: "Wed", next: true },
+  { day: 3, label: "Thu", next: true, event: "Review" },
+  { day: 4, label: "Fri", next: true },
+  { day: 5, label: "Sat", next: true },
+  { day: 6, label: "Sun", next: true },
 ];
 
 function MagneticButton({ className, children, ...props }) {
@@ -189,6 +206,115 @@ function PageShell({ title, subtitle }) {
       <div className="section-kicker">{title}</div>
       <h1>{title}</h1>
       <p>{subtitle}</p>
+    </MotionPanel>
+  );
+}
+
+const defaultSettings = {
+  notifications: true,
+  compactMode: false,
+  autoRun: true,
+  weeklyDigest: false,
+};
+
+function SettingsPage({ settings, onToggle, onSelect }) {
+  return (
+    <MotionPanel className="panel settings-panel">
+      <div className="settings-header">
+        <div>
+          <div className="section-kicker">Settings</div>
+          <h1>Settings</h1>
+          <p>A lightweight settings page with real saved preferences.</p>
+        </div>
+        <div className="settings-summary">
+          <strong>{settings.notifications ? "Live" : "Muted"}</strong>
+          <span>Notification state</span>
+        </div>
+      </div>
+
+      <div className="settings-grid">
+        <section className="settings-group">
+          <h2>Workspace</h2>
+          <label className="settings-row">
+            <div>
+              <strong>Compact mode</strong>
+              <span>Reduce panel spacing and tighten the workspace.</span>
+            </div>
+            <button
+              type="button"
+              className={settings.compactMode ? "toggle on" : "toggle"}
+              aria-pressed={settings.compactMode}
+              onClick={() => onToggle("compactMode")}
+            >
+              <span />
+            </button>
+          </label>
+          <label className="settings-row">
+            <div>
+              <strong>Auto-run agents</strong>
+              <span>Keep the primary action focused on execution.</span>
+            </div>
+            <button
+              type="button"
+              className={settings.autoRun ? "toggle on" : "toggle"}
+              aria-pressed={settings.autoRun}
+              onClick={() => onToggle("autoRun")}
+            >
+              <span />
+            </button>
+          </label>
+        </section>
+
+        <section className="settings-group">
+          <h2>Alerts</h2>
+          <label className="settings-row">
+            <div>
+              <strong>Notifications</strong>
+              <span>Show the channel warning in the workspace.</span>
+            </div>
+            <button
+              type="button"
+              className={settings.notifications ? "toggle on" : "toggle"}
+              aria-pressed={settings.notifications}
+              onClick={() => onToggle("notifications")}
+            >
+              <span />
+            </button>
+          </label>
+          <label className="settings-row">
+            <div>
+              <strong>Weekly digest</strong>
+              <span>Send a compact summary at the end of the week.</span>
+            </div>
+            <button
+              type="button"
+              className={settings.weeklyDigest ? "toggle on" : "toggle"}
+              aria-pressed={settings.weeklyDigest}
+              onClick={() => onToggle("weeklyDigest")}
+            >
+              <span />
+            </button>
+          </label>
+        </section>
+
+        <section className="settings-group">
+          <h2>Brand tone</h2>
+          <div className="segmented" role="tablist" aria-label="Brand tone">
+            {["Focused", "Balanced", "Bold"].map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={settings.tone === option ? "segment active" : "segment"}
+                aria-pressed={settings.tone === option}
+                onClick={() => onSelect("tone", option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <p className="settings-note">Saved locally. These controls are wired to actual app state, not placeholders.</p>
+        </section>
+      </div>
     </MotionPanel>
   );
 }
@@ -349,6 +475,73 @@ function Launches() {
   );
 }
 
+function CalendarPanel() {
+  const [selectedDay, setSelectedDay] = useState(26);
+
+  return (
+    <MotionPanel className="panel calendar-panel">
+      <div className="calendar-header">
+        <div>
+          <div className="section-kicker">
+            <CalendarBlank size={16} />
+            Calendar
+          </div>
+          <h2>June 2026</h2>
+          <p>Click any day to focus the schedule and surface the next action.</p>
+        </div>
+        <div className="calendar-summary">
+          <strong>{selectedDay}</strong>
+          <span>Selected day</span>
+        </div>
+      </div>
+
+      <div className="calendar-grid" role="grid" aria-label="Monthly calendar">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+          <div className="calendar-dow" key={day}>
+            {day}
+          </div>
+        ))}
+        {calendarDays.map((cell, index) => {
+          const isSelected = selectedDay === cell.day && !cell.next;
+          return (
+            <motion.button
+              key={`${cell.label}-${cell.day}-${index}`}
+              type="button"
+              className={
+                cell.muted
+                  ? "calendar-cell muted"
+                  : cell.next
+                    ? "calendar-cell next"
+                    : isSelected
+                      ? "calendar-cell selected"
+                      : "calendar-cell"
+              }
+              onClick={() => setSelectedDay(cell.day)}
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <span className="calendar-number">{cell.day}</span>
+              <span className="calendar-label">{cell.label}</span>
+              {cell.event && <span className="calendar-event">{cell.event}</span>}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div className="calendar-footer">
+        <div className="calendar-chip">
+          <span className="calendar-dot" />
+          <strong>Selected</strong>
+          <span>{selectedDay === 26 ? "Today" : `Day ${selectedDay}`}</span>
+        </div>
+        <MagneticButton className="secondary-button" type="button">
+          Open full schedule
+        </MagneticButton>
+      </div>
+    </MotionPanel>
+  );
+}
+
 function BottomCards() {
   return (
     <div className="bottom-grid">
@@ -407,6 +600,29 @@ function MobileSummary() {
 
 function App() {
   const [currentPage, setCurrentPage] = useState("Command center");
+  const [settings, setSettings] = useState(() => {
+    if (typeof window === "undefined") return { ...defaultSettings, tone: "Focused" };
+    try {
+      const stored = window.localStorage.getItem("aiMarketingAgents.settings");
+      return stored ? { ...defaultSettings, tone: "Focused", ...JSON.parse(stored) } : { ...defaultSettings, tone: "Focused" };
+    } catch {
+      return { ...defaultSettings, tone: "Focused" };
+    }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("aiMarketingAgents.settings", JSON.stringify(settings));
+    document.body.dataset.compact = settings.compactMode ? "true" : "false";
+    document.body.dataset.tone = settings.tone.toLowerCase();
+  }, [settings]);
+
+  const updateSetting = (key, value) => {
+    setSettings((current) => ({ ...current, [key]: value }));
+  };
+
+  const toggleSetting = (key) => {
+    setSettings((current) => ({ ...current, [key]: !current[key] }));
+  };
 
   const pageContent = {
     "Command center": (
@@ -442,21 +658,21 @@ function App() {
         </motion.div>
 
         <MobileSummary />
-        <WarningBar />
+        {settings.notifications && <WarningBar />}
       </>
     ),
     Briefs: <PageShell title="Briefs" subtitle="A lightweight briefs page." />,
     Agents: <PageShell title="Agents" subtitle="A lightweight agents page." />,
     Campaigns: <PageShell title="Campaigns" subtitle="A lightweight campaigns page." />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
-    Calendar: <PageShell title="Calendar" subtitle="A lightweight calendar page." />,
+    Calendar: <CalendarPanel />,
     Insights: <PageShell title="Insights" subtitle="A lightweight insights page." />,
     Integrations: <PageShell title="Integrations" subtitle="A lightweight integrations page." />,
-    Settings: <PageShell title="Settings" subtitle="A lightweight settings page." />,
+    Settings: <SettingsPage settings={settings} onToggle={toggleSetting} onSelect={updateSetting} />,
   };
 
   return (
-    <main className="app-shell">
+    <main className={settings.compactMode ? "app-shell compact" : "app-shell"}>
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <section className="workspace">
         <Topbar />
