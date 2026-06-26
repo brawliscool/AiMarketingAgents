@@ -1,19 +1,24 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+} from "framer-motion";
+import {
   Bell,
   CalendarBlank,
   ChartLineUp,
   CheckCircle,
   Command,
-  DotsThree,
   Flask,
   GearSix,
   HouseLine,
   Lightning,
   List,
   MagnifyingGlass,
-  Megaphone,
   PaperPlaneTilt,
   PlugsConnected,
   Plus,
@@ -23,6 +28,20 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import "./styles.css";
+
+const spring = { type: "spring", stiffness: 110, damping: 20, mass: 0.8 };
+const fastSpring = { type: "spring", stiffness: 360, damping: 28, mass: 0.7 };
+
+const pageVariants = {
+  initial: { opacity: 0, y: 18, filter: "blur(10px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)", transition: { ...spring, staggerChildren: 0.08 } },
+  exit: { opacity: 0, y: -10, filter: "blur(8px)", transition: { duration: 0.18 } },
+};
+
+const itemVariants = {
+  initial: { opacity: 0, y: 22 },
+  animate: { opacity: 1, y: 0, transition: spring },
+};
 
 const navItems = [
   ["Command center", HouseLine],
@@ -55,18 +74,67 @@ const launches = [
   ["Jul 02", "Test founder note sequence", "Email", "Drafting", "Theo Kline"],
 ];
 
+function MagneticButton({ className, children, ...props }) {
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const x = useSpring(useTransform(pointerX, [-1, 1], [-8, 8]), fastSpring);
+  const y = useSpring(useTransform(pointerY, [-1, 1], [-5, 5]), fastSpring);
+
+  return (
+    <motion.button
+      className={className}
+      style={{ x, y }}
+      whileHover={{ scale: 1.025 }}
+      whileTap={{ scale: 0.965, y: 1 }}
+      onPointerMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        pointerX.set(((event.clientX - rect.left) / rect.width - 0.5) * 2);
+        pointerY.set(((event.clientY - rect.top) / rect.height - 0.5) * 2);
+      }}
+      onPointerLeave={() => {
+        pointerX.set(0);
+        pointerY.set(0);
+      }}
+      {...props}
+    >
+      {children}
+    </motion.button>
+  );
+}
+
+function MotionPanel({ className, children, delay = 0, ...props }) {
+  return (
+    <motion.section
+      className={className}
+      variants={itemVariants}
+      transition={{ ...spring, delay }}
+      whileHover={{ y: -4, transition: fastSpring }}
+      layout
+      {...props}
+    >
+      {children}
+    </motion.section>
+  );
+}
+
 function Sparkline({ path, compact = false }) {
   return (
     <svg className={compact ? "sparkline compact" : "sparkline"} viewBox="0 0 276 126" aria-hidden="true">
       <path className="spark-fill" d={`${path} L246 126 L30 126 Z`} />
-      <path className="spark-stroke" d={path} />
+      <motion.path
+        className="spark-stroke"
+        d={path}
+        initial={{ pathLength: 0, opacity: 0.35 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1.35, ease: [0.16, 1, 0.3, 1] }}
+      />
     </svg>
   );
 }
 
 function Sidebar({ currentPage, onNavigate }) {
   return (
-    <aside className="sidebar" aria-label="Workspace navigation">
+    <motion.aside className="sidebar" aria-label="Workspace navigation" initial={{ x: -22, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={spring}>
       <a className="brand" href="/" aria-label="AiMarketingAgents home">
         <span className="brand-mark">
           <Lightning size={19} weight="fill" />
@@ -76,18 +144,22 @@ function Sidebar({ currentPage, onNavigate }) {
 
       <nav className="side-nav">
         {navItems.map(([label, Icon]) => (
-          <a
+          <motion.a
+            layout
             className={currentPage === label ? "side-link active" : "side-link"}
             href={`#${label.toLowerCase().replace(/\s+/g, "-")}`}
             key={label}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
             onClick={(event) => {
               event.preventDefault();
               onNavigate(label);
             }}
           >
+            {currentPage === label && <motion.span className="active-rail" layoutId="active-rail" transition={spring} />}
             <Icon size={18} />
             <span>{label}</span>
-          </a>
+          </motion.a>
         ))}
       </nav>
 
@@ -107,17 +179,17 @@ function Sidebar({ currentPage, onNavigate }) {
           </div>
         </div>
       </div>
-    </aside>
+    </motion.aside>
   );
 }
 
 function PageShell({ title, subtitle }) {
   return (
-    <section className="panel page-shell">
+    <MotionPanel className="panel page-shell">
       <div className="section-kicker">{title}</div>
       <h1>{title}</h1>
       <p>{subtitle}</p>
-    </section>
+    </MotionPanel>
   );
 }
 
@@ -135,19 +207,19 @@ function Topbar() {
       </a>
       <span className="date-select">Thursday, Jun 26</span>
       <div className="top-actions">
-        <button className="icon-button" type="button" aria-label="Search">
+        <MagneticButton className="icon-button" type="button" aria-label="Search">
           <MagnifyingGlass size={20} />
-        </button>
-        <button className="icon-button" type="button" aria-label="Notifications">
+        </MagneticButton>
+        <MagneticButton className="icon-button" type="button" aria-label="Notifications">
           <Bell size={20} />
-        </button>
-        <button className="icon-button desktop-only" type="button" aria-label="Open apps">
+        </MagneticButton>
+        <MagneticButton className="icon-button desktop-only" type="button" aria-label="Open apps">
           <SquaresFour size={20} />
-        </button>
-        <button className="primary-button" type="button">
+        </MagneticButton>
+        <MagneticButton className="primary-button" type="button">
           <Lightning size={17} weight="fill" />
           Run agents
-        </button>
+        </MagneticButton>
       </div>
     </header>
   );
@@ -155,14 +227,14 @@ function Topbar() {
 
 function AgentList({ compact = false }) {
   return (
-    <section className={compact ? "agent-panel compact-panel" : "agent-panel"} aria-label="Active agents">
+    <motion.section className={compact ? "agent-panel compact-panel" : "agent-panel"} aria-label="Active agents" variants={itemVariants} layout>
       <div className="panel-title">
         <h2>Active agents</h2>
         <span>Live</span>
       </div>
-      <div className="agent-list">
+      <motion.div className="agent-list" variants={{ animate: { transition: { staggerChildren: 0.075 } } }}>
         {agents.map(([name, channel, value, label, Icon], index) => (
-          <article className="agent-row" style={{ "--index": index }} key={name}>
+          <motion.article className="agent-row" style={{ "--index": index }} key={name} variants={itemVariants} whileHover={{ x: 5, borderColor: "rgba(177, 108, 255, 0.38)" }} layout>
             <div className="agent-icon">
               <Icon size={21} />
             </div>
@@ -177,51 +249,51 @@ function AgentList({ compact = false }) {
               </div>
             )}
             <span className="dot" />
-          </article>
+          </motion.article>
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
 function SignalBoard() {
   return (
-    <section className="panel signal-board">
+    <MotionPanel className="panel signal-board">
       <div className="section-kicker">
         <ChartLineUp size={16} />
         Signal board
       </div>
       <div className="metric-grid">
         {metrics.map(([label, value, delta, path]) => (
-          <article className="metric-card" key={label}>
+          <motion.article className="metric-card" key={label} whileHover={{ backgroundColor: "rgba(177, 108, 255, 0.04)" }} layout>
             <span>{label}</span>
             <strong>{value}</strong>
             <small className={delta.startsWith("+") ? "good" : "down"}>{delta}</small>
             <Sparkline path={path} />
-          </article>
+          </motion.article>
         ))}
       </div>
-    </section>
+    </MotionPanel>
   );
 }
 
 function ProductMock() {
   return (
-    <div className="product-mock" aria-hidden="true">
-      <div className="mock-screen back" />
-      <div className="mock-screen front">
+    <motion.div className="product-mock" aria-hidden="true" whileHover={{ rotateX: 2, rotateY: -4, scale: 1.015 }} transition={fastSpring}>
+      <motion.div className="mock-screen back" animate={{ y: [0, 5, 0], rotate: [-8, -10, -8] }} transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div className="mock-screen front" animate={{ y: [0, -6, 0], rotate: [7, 5, 7] }} transition={{ duration: 5.6, repeat: Infinity, ease: "easeInOut" }}>
         <span />
         <span />
         <span />
         <div className="mock-chart" />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
 function CurrentBrief() {
   return (
-    <section className="panel brief-panel">
+    <MotionPanel className="panel brief-panel">
       <div className="brief-copy">
         <div className="section-kicker">
           <Command size={16} />
@@ -230,7 +302,7 @@ function CurrentBrief() {
         <h2>Convert trial users who imported contacts but skipped first send.</h2>
         <p>The strongest path is a short operator-led sequence: one specific outcome, one screenshot, one calendar hold.</p>
         <div className="brief-actions">
-          <button className="secondary-button" type="button">Open brief</button>
+          <MagneticButton className="secondary-button" type="button">Open brief</MagneticButton>
           <div className="avatar-stack" aria-label="Brief collaborators">
             {[32, 47, 56].map((id) => (
               <img key={id} src={`https://i.pravatar.cc/80?img=${id}`} alt="" />
@@ -240,13 +312,13 @@ function CurrentBrief() {
         </div>
       </div>
       <ProductMock />
-    </section>
+    </MotionPanel>
   );
 }
 
 function Launches() {
   return (
-    <section className="panel launch-panel">
+    <MotionPanel className="panel launch-panel">
       <div className="section-kicker">
         <CalendarBlank size={16} />
         Next launches
@@ -260,7 +332,7 @@ function Launches() {
           <span>Owner</span>
         </div>
         {launches.map(([date, title, channel, status, owner], index) => (
-          <article className="launch-row" key={title}>
+          <motion.article className="launch-row" key={title} whileHover={{ x: 5 }} layout>
             <time>{date}</time>
             <div className="campaign-cell">
               <span className="thumb" style={{ "--index": index }} />
@@ -269,55 +341,55 @@ function Launches() {
             <span>{channel}</span>
             <small className={status === "Ready" ? "ready" : status === "Needs review" ? "review" : "draft"}>{status}</small>
             <img src={`https://i.pravatar.cc/80?img=${18 + index}`} alt={owner} />
-          </article>
+          </motion.article>
         ))}
       </div>
-      <button className="text-link" type="button">View all launches</button>
-    </section>
+      <MagneticButton className="text-link" type="button">View all launches</MagneticButton>
+    </MotionPanel>
   );
 }
 
 function BottomCards() {
   return (
     <div className="bottom-grid">
-      <section className="panel revenue-card">
+      <MotionPanel className="panel revenue-card">
         <TrendUp size={26} weight="duotone" />
         <span>Revenue influenced</span>
         <strong>$84,620</strong>
         <p>Based on active briefs, list fatigue, and channel fit.</p>
         <Sparkline path="M30 106 L49 94 L69 98 L88 78 L108 92 L127 76 L147 55 L166 70 L186 42 L205 63 L225 47 L246 69" compact />
-      </section>
-      <section className="panel state-card">
-        <span className="check-ring">
+      </MotionPanel>
+      <MotionPanel className="panel state-card">
+        <motion.span className="check-ring" animate={{ scale: [1, 1.06, 1] }} transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}>
           <CheckCircle size={42} />
-        </span>
+        </motion.span>
         <strong>Clean state</strong>
         <p>All core agents responded within 240 ms.</p>
-      </section>
-      <section className="panel loading-card" aria-label="Loading preview">
+      </MotionPanel>
+      <MotionPanel className="panel loading-card" aria-label="Loading preview">
         <div className="section-kicker">Loading preview</div>
         <span />
         <span />
         <span />
-      </section>
+      </MotionPanel>
     </div>
   );
 }
 
 function WarningBar() {
   return (
-    <section className="warning-bar" role="status">
+    <motion.section className="warning-bar" role="status" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: 0.28 }}>
       <Warning size={23} />
       <strong>Channel warning</strong>
       <span>LinkedIn connector needs a fresh token before scheduling.</span>
-      <button type="button">Reconnect</button>
-    </section>
+      <MagneticButton type="button">Reconnect</MagneticButton>
+    </motion.section>
   );
 }
 
 function MobileSummary() {
   return (
-    <section className="mobile-signal panel">
+    <MotionPanel className="mobile-signal panel">
       <div className="panel-title">
         <h2>Signal board</h2>
         <span>Open</span>
@@ -329,7 +401,7 @@ function MobileSummary() {
           <small className={delta.startsWith("+") ? "good" : "down"}>{delta}</small>
         </div>
       ))}
-    </section>
+    </MotionPanel>
   );
 }
 
@@ -339,35 +411,35 @@ function App() {
   const pageContent = {
     "Command center": (
       <>
-        <div className="hero-layout">
-          <section className="hero-copy">
+        <motion.div className="hero-layout" variants={{ animate: { transition: { staggerChildren: 0.1 } } }}>
+          <motion.section className="hero-copy" variants={itemVariants}>
             <span className="purple-kicker">Live command center</span>
             <h1>Marketing agents, on task</h1>
             <p>Coordinated research, copy testing, and lifecycle execution from one focused operator view.</p>
             <div className="hero-actions">
-              <button className="primary-button large" type="button">
+              <MagneticButton className="primary-button large" type="button">
                 <Plus size={20} />
                 Build new brief
-              </button>
-              <button className="secondary-button large" type="button">
+              </MagneticButton>
+              <MagneticButton className="secondary-button large" type="button">
                 <CalendarBlank size={20} />
                 Open calendar
-              </button>
+              </MagneticButton>
             </div>
             <div className="nominal">
               <span className="status-light" />
               All systems nominal
             </div>
-          </section>
+          </motion.section>
           <AgentList />
-        </div>
+        </motion.div>
 
-        <div className="desktop-grid">
+        <motion.div className="desktop-grid" variants={{ animate: { transition: { staggerChildren: 0.09 } } }}>
           <SignalBoard />
           <CurrentBrief />
           <Launches />
           <BottomCards />
-        </div>
+        </motion.div>
 
         <MobileSummary />
         <WarningBar />
@@ -388,9 +460,19 @@ function App() {
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <section className="workspace">
         <Topbar />
-        <div className="page-stage" key={currentPage}>
-          {pageContent[currentPage]}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            className="page-stage"
+            key={currentPage}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            layout
+          >
+            {pageContent[currentPage]}
+          </motion.div>
+        </AnimatePresence>
       </section>
     </main>
   );

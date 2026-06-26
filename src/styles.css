@@ -155,12 +155,11 @@ img {
   transform: translateX(3px);
 }
 
-.side-link.active::before {
+.active-rail {
   position: absolute;
   left: -17px;
   width: 3px;
   height: 34px;
-  content: "";
   border-radius: 999px;
   background: var(--purple-hot);
 }
@@ -588,9 +587,7 @@ img {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 4;
-  stroke-dasharray: 420;
-  stroke-dashoffset: 420;
-  animation: draw-line 1.55s cubic-bezier(0.16, 1, 0.3, 1) forwards, glow-line 3s ease-in-out 1.55s infinite;
+  filter: drop-shadow(0 0 8px rgba(177, 108, 255, 0.32));
 }
 
 .spark-fill {
@@ -658,7 +655,7 @@ img {
   background:
     radial-gradient(circle at 72% 35%, rgba(142, 69, 255, 0.24), transparent 24%),
     linear-gradient(135deg, #211633, #09080d);
-  animation: hover-drift 5.8s ease-in-out infinite;
+  transform-style: preserve-3d;
 }
 
 .mock-screen {
@@ -672,14 +669,12 @@ img {
 .mock-screen.back {
   inset: 46px 98px 42px 28px;
   transform: rotate(-8deg);
-  animation: card-back-drift 6.4s ease-in-out infinite;
 }
 
 .mock-screen.front {
   inset: 34px 22px 26px 64px;
   padding: 18px;
   transform: rotate(7deg);
-  animation: card-front-drift 5.6s ease-in-out infinite;
 }
 
 .mock-screen.front span {
@@ -1043,52 +1038,6 @@ img {
   }
   50% {
     transform: translateY(-3px);
-  }
-}
-
-@keyframes draw-line {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes glow-line {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 rgba(177, 108, 255, 0));
-  }
-  50% {
-    filter: drop-shadow(0 0 8px rgba(177, 108, 255, 0.44));
-  }
-}
-
-@keyframes hover-drift {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes card-back-drift {
-  0%,
-  100% {
-    transform: rotate(-8deg) translate3d(0, 0, 0);
-  }
-  50% {
-    transform: rotate(-10deg) translate3d(-7px, 4px, 0);
-  }
-}
-
-@keyframes card-front-drift {
-  0%,
-  100% {
-    transform: rotate(7deg) translate3d(0, 0, 0);
-  }
-  50% {
-    transform: rotate(5deg) translate3d(7px, -5px, 0);
   }
 }
 
