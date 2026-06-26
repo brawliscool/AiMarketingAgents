@@ -393,7 +393,7 @@ function BriefsPage() {
     <div className="briefs-page">
       <motion.section className="briefs-hero panel" variants={itemVariants}>
         <div className="briefs-hero-copy">
-          <span className="purple-kicker">Mission control</span>
+          <span className="electric-kicker">Mission control</span>
           <h1>Agent Builder</h1>
           <p>Build your marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
           <div className="hero-actions">
@@ -941,7 +941,7 @@ function App() {
       <>
         <motion.div className="hero-layout" variants={{ animate: { transition: { staggerChildren: 0.1 } } }}>
           <motion.section className="hero-copy" variants={itemVariants}>
-            <span className="purple-kicker">Live command center</span>
+            <span className="electric-kicker">Live command center</span>
             <h1>Marketing agents, on task</h1>
             <p>Coordinated research, copy testing, and lifecycle execution from one focused operator view.</p>
             <div className="hero-actions">
