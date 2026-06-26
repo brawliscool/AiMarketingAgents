@@ -304,22 +304,7 @@ const agentRosterSeed = [
   },
 ];
 
-function AgentsPage() {
-  const [roster, setRoster] = useState(agentRosterSeed);
-
-  const setAgentActive = (id, nextActive) => {
-    setRoster((current) =>
-      current.map((agent) =>
-        agent.id === id
-          ? {
-              ...agent,
-              active: nextActive,
-            }
-          : agent,
-      ),
-    );
-  };
-
+function AgentsPage({ roster, onSetAgentActive }) {
   const activeCount = roster.filter((agent) => agent.active).length;
 
   return (
@@ -376,7 +361,7 @@ function AgentsPage() {
                   <button
                     type="button"
                     className="agent-action stop"
-                    onClick={() => setAgentActive(agent.id, false)}
+                    onClick={() => onSetAgentActive(agent.id, false)}
                     disabled={!isActive}
                     aria-disabled={!isActive}
                   >
@@ -386,7 +371,7 @@ function AgentsPage() {
                   <button
                     type="button"
                     className="agent-action start"
-                    onClick={() => setAgentActive(agent.id, true)}
+                    onClick={() => onSetAgentActive(agent.id, true)}
                     disabled={isActive}
                     aria-disabled={isActive}
                   >
@@ -913,6 +898,7 @@ function MobileSummary() {
 
 function App() {
   const [currentPage, setCurrentPage] = useState("Command center");
+  const [roster, setRoster] = useState(agentRosterSeed);
   const [settings, setSettings] = useState(() => {
     if (typeof window === "undefined") return { ...defaultSettings, tone: "Focused" };
     try {
@@ -935,6 +921,19 @@ function App() {
 
   const toggleSetting = (key) => {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const setAgentActive = (id, nextActive) => {
+    setRoster((current) =>
+      current.map((agent) =>
+        agent.id === id
+          ? {
+              ...agent,
+              active: nextActive,
+            }
+          : agent,
+      ),
+    );
   };
 
   const pageContent = {
@@ -975,7 +974,7 @@ function App() {
       </>
     ),
     Briefs: <BriefsPage />,
-    Agents: <AgentsPage />,
+    Agents: <AgentsPage roster={roster} onSetAgentActive={setAgentActive} />,
     Campaigns: <PageShell title="Campaigns" subtitle="A lightweight campaigns page." />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <CalendarPanel />,
