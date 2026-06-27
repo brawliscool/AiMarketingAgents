@@ -12,12 +12,16 @@ import {
   CalendarBlank,
   ChartLineUp,
   CheckCircle,
+  Clock,
   Command,
   ClipboardText,
+  Eye,
+  FloppyDisk,
   Flask,
   GearSix,
   Hash,
   HouseLine,
+  InstagramLogo,
   Lightning,
   List,
   MagnifyingGlass,
@@ -26,14 +30,19 @@ import {
   PlugsConnected,
   Plus,
   Play,
+  RedditLogo,
+  ShieldCheck,
   SquaresFour,
   Storefront,
   Square,
   Target,
+  TiktokLogo,
   TrendUp,
+  UploadSimple,
   UsersThree,
   VideoCamera,
   Warning,
+  XLogo,
 } from "@phosphor-icons/react";
 import "./styles.css";
 
@@ -165,12 +174,46 @@ const briefBuilderFields = [
 
 const publishingAccessFields = [
   { id: "socialPlatform", label: "Social platform", required: true },
+  { id: "socialAccountId", label: "Platform account or page ID", required: true },
   { id: "socialApiKey", label: "Platform API key or access token", type: "password" },
   { id: "socialLogin", label: "Platform login email or username" },
   { id: "socialPassword", label: "Platform password", type: "password" },
 ];
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8787";
+
+function useIntegrationStatus() {
+  const [state, setState] = useState({ loading: true, integrations: [], error: "", scheduler: null });
+
+  const refresh = async () => {
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/integrations/status`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Could not load integrations");
+      setState({
+        loading: false,
+        integrations: data.integrations || [],
+        scheduler: data.scheduler || null,
+        error: "",
+      });
+    } catch (error) {
+      setState({ loading: false, integrations: [], scheduler: null, error: error instanceof Error ? error.message : "Could not load integrations" });
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  return { ...state, refresh };
+}
+
+function statusLabel(status) {
+  if (status === "connected") return "Connected";
+  if (status === "needs_reconnect") return "Needs Reconnect";
+  return "Disconnected";
+}
 
 const liveAgentCards = [
   ["Research Agent", "Finding audience pain points", "Running", 72, Target],
@@ -189,43 +232,33 @@ const memoryCards = [
   ["Current campaign goal", "Convert local leads into consult bookings", Target],
 ];
 
-const integrationAccounts = [
-  {
-    name: "Instagram Business",
-    description: "Publishing, comments, reels performance, and account insights.",
-    status: "Ready to connect",
-    icon: PaperPlaneTilt,
-  },
-  {
-    name: "Facebook Page",
-    description: "Page posts, paid-social handoff, audience signals, and inbox context.",
-    status: "Ready to connect",
-    icon: Megaphone,
-  },
-  {
-    name: "TikTok Business",
-    description: "Short-form publishing queue, trend capture, and video analytics.",
-    status: "Ready to connect",
-    icon: VideoCamera,
-  },
-  {
-    name: "Google Analytics",
-    description: "Website traffic, campaign attribution, and conversion reporting.",
-    status: "Ready to connect",
-    icon: ChartLineUp,
-  },
-  {
-    name: "Email platform",
-    description: "Lifecycle campaigns, nurture sequences, and subscriber segments.",
-    status: "Ready to connect",
-    icon: ClipboardText,
-  },
-  {
-    name: "Website tracker",
-    description: "Pixel events, form submissions, and landing-page conversion signals.",
-    status: "Setup needed",
-    icon: Target,
-  },
+const socialPlatforms = {
+  x: { name: "X.com", icon: XLogo, color: "#c6f0ff" },
+  tiktok: { name: "TikTok", icon: TiktokLogo, color: "#9ff7e9" },
+  instagram: { name: "Instagram", icon: InstagramLogo, color: "#ffc0dd" },
+  reddit: { name: "Reddit", icon: RedditLogo, color: "#ffb48a" },
+};
+
+const publishInitialValues = {
+  text: "",
+  title: "",
+  hashtags: "",
+  mediaUrls: "",
+  videoUrl: "",
+  imageUrl: "",
+  subreddit: "",
+  scheduledAt: "",
+  campaignId: "launch-001",
+  agentId: "marketing-director",
+};
+
+const publishingAgents = [
+  "Research Agent",
+  "Writer Agent",
+  "SEO Agent",
+  "Video Agent",
+  "Marketing Director",
+  "Calendar Agent",
 ];
 
 function MagneticButton({ className, children, ...props }) {
@@ -497,15 +530,17 @@ function BriefsPage() {
     message: "",
     result: null,
   });
+  const [publishLive, setPublishLive] = useState(false);
   const requiredFieldsComplete = briefBuilderFields
     .filter((field) => field.required)
     .every((field) => briefValues[field.id].trim().length > 0);
   const socialPlatformSelected = publishingAccessValues.socialPlatform.trim().length > 0;
+  const socialAccountSelected = publishingAccessValues.socialAccountId.trim().length > 0;
   const hasSocialApiAccess = publishingAccessValues.socialApiKey.trim().length > 0;
   const hasSocialLoginAccess =
     publishingAccessValues.socialLogin.trim().length > 0 &&
     publishingAccessValues.socialPassword.trim().length > 0;
-  const publishingAccessComplete = socialPlatformSelected && (hasSocialApiAccess || hasSocialLoginAccess);
+  const publishingAccessComplete = socialPlatformSelected && socialAccountSelected && (hasSocialApiAccess || hasSocialLoginAccess);
   const builderReady = requiredFieldsComplete && publishingAccessComplete;
 
   const updateBriefField = (fieldId, value) => {
@@ -542,6 +577,7 @@ function BriefsPage() {
         body: JSON.stringify({
           ...briefValues,
           ...publishingAccessValues,
+          publishLive,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -551,8 +587,8 @@ function BriefsPage() {
       }
 
       setAgentRunState({
-        status: "complete",
-        message: "Agent run completed",
+        status: data?.ok === false ? "partial" : "complete",
+        message: data?.ok === false ? "Draft generated; publishing needs attention" : "Agent run completed",
         result: data,
       });
     } catch (error) {
@@ -648,6 +684,17 @@ function BriefsPage() {
                 </motion.label>
               ))}
             </div>
+            <label className="publish-toggle">
+              <input
+                type="checkbox"
+                checked={publishLive}
+                onChange={(event) => setPublishLive(event.target.checked)}
+              />
+              <span>
+                <strong>Publish live after generation</strong>
+                <small>Uses official API/token adapters when available</small>
+              </span>
+            </label>
           </div>
           <div className="builder-footer">
             <div className={builderReady ? "builder-check complete" : "builder-check"}>
@@ -754,6 +801,18 @@ const defaultSettings = {
 };
 
 function SettingsPage({ settings, onToggle, onSelect }) {
+  const { integrations, refresh } = useIntegrationStatus();
+
+  const refreshPlatform = async (platform) => {
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/refresh`, { method: "POST" });
+    refresh();
+  };
+
+  const disconnectPlatform = async (platform) => {
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, { method: "POST" });
+    refresh();
+  };
+
   return (
     <MotionPanel className="panel settings-panel">
       <div className="settings-header">
@@ -850,54 +909,264 @@ function SettingsPage({ settings, onToggle, onSelect }) {
           </div>
           <p className="settings-note">Saved locally. These controls are wired to actual app state, not placeholders.</p>
         </section>
+
+        <section className="settings-group integration-settings">
+          <h2>Connected accounts</h2>
+          {integrations.map((integration) => (
+            <div className="settings-row integration-setting-row" key={integration.platform}>
+              <div>
+                <strong>{integration.name}</strong>
+                <span>{statusLabel(integration.status)} - expires {integration.expiresAt ? new Date(integration.expiresAt).toLocaleDateString() : "after OAuth setup"}</span>
+                <small>{integration.scopes.join(", ")}</small>
+              </div>
+              <div className="settings-mini-actions">
+                <button type="button" onClick={() => refreshPlatform(integration.platform)}>Refresh</button>
+                <button type="button" onClick={() => disconnectPlatform(integration.platform)}>Disconnect</button>
+                <button type="button" onClick={refresh}>Sync now</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </MotionPanel>
+  );
+}
+
+function PublishWorkspace({ integrations, onRefresh }) {
+  const [selectedPlatforms, setSelectedPlatforms] = useState(["x"]);
+  const [values, setValues] = useState(publishInitialValues);
+  const [drafts, setDrafts] = useState([]);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const togglePlatform = (platform) => {
+    setSelectedPlatforms((current) =>
+      current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform],
+    );
+  };
+
+  const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
+
+  const saveDraft = () => {
+    setDrafts((current) => [{ id: crypto.randomUUID(), ...values, platforms: selectedPlatforms, createdAt: new Date().toLocaleString() }, ...current].slice(0, 5));
+    setResult({ status: "draft_saved", platforms: selectedPlatforms });
+  };
+
+  const publish = async () => {
+    setError("");
+    setResult(null);
+    const payload = {
+      ...values,
+      mediaUrls: values.mediaUrls.split(/\s+/).filter(Boolean),
+      hashtags: values.hashtags.split(/\s+/).filter(Boolean),
+    };
+
+    try {
+      const responses = await Promise.all(selectedPlatforms.map(async (platform) => {
+        const response = await fetch(`${apiBaseUrl}/api/integrations/${platform}/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        return { platform, ok: response.ok, ...data };
+      }));
+      setResult({ status: "publish_complete", responses });
+      onRefresh();
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : "Publishing failed");
+    }
+  };
+
+  return (
+    <MotionPanel className="panel publish-workspace">
+      <div className="panel-title">
+        <h2>Publish workspace</h2>
+        <span>Agents ready</span>
+      </div>
+
+      <div className="platform-picker" aria-label="Publishing platforms">
+        {integrations.map((integration) => {
+          const meta = socialPlatforms[integration.platform];
+          const Icon = meta?.icon || PlugsConnected;
+          const selected = selectedPlatforms.includes(integration.platform);
+          return (
+            <button
+              key={integration.platform}
+              type="button"
+              className={selected ? "platform-toggle active" : "platform-toggle"}
+              onClick={() => togglePlatform(integration.platform)}
+              style={{ "--platform-color": meta?.color || "var(--electric-hot)" }}
+            >
+              <Icon size={18} />
+              <span>{integration.name}</span>
+              <small>{statusLabel(integration.status)}</small>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="publish-grid">
+        {[
+          ["text", "Text", true],
+          ["title", "Title"],
+          ["hashtags", "Hashtags"],
+          ["mediaUrls", "Media URLs"],
+          ["videoUrl", "Video URL"],
+          ["imageUrl", "Image URL"],
+          ["subreddit", "Subreddit"],
+          ["scheduledAt", "Schedule"],
+          ["campaignId", "Campaign"],
+          ["agentId", "Agent"],
+        ].map(([key, label, multiline]) => (
+          <label className={multiline ? "builder-field wide" : "builder-field"} key={key}>
+            <span>{label}</span>
+            {multiline ? (
+              <textarea value={values[key]} onChange={(event) => updateValue(key, event.target.value)} rows={3} />
+            ) : (
+              <input type={key === "scheduledAt" ? "datetime-local" : "text"} value={values[key]} onChange={(event) => updateValue(key, event.target.value)} />
+            )}
+          </label>
+        ))}
+      </div>
+
+      <div className="agent-publish-strip">
+        {publishingAgents.map((agent) => (
+          <span key={agent}><ShieldCheck size={14} />{agent}</span>
+        ))}
+      </div>
+
+      <div className="builder-footer publish-actions">
+        <div className="builder-check complete">
+          <CheckCircle size={20} weight="fill" />
+          Shared social service normalizes agent payloads
+        </div>
+        <div className="publish-button-row">
+          <MagneticButton className="secondary-button" type="button"><Lightning size={17} />Generate</MagneticButton>
+          <MagneticButton className="secondary-button" type="button" onClick={saveDraft}><FloppyDisk size={17} />Save Draft</MagneticButton>
+          <MagneticButton className="secondary-button" type="button"><PaperPlaneTilt size={17} />Send To Agents</MagneticButton>
+          <MagneticButton className="secondary-button" type="button"><Eye size={17} />Preview</MagneticButton>
+          <MagneticButton className="primary-button" type="button" onClick={publish}><UploadSimple size={17} />Publish</MagneticButton>
+        </div>
+      </div>
+
+      {(result || error) && (
+        <div className={error ? "publish-result error" : "publish-result"}>
+          <strong>{error || result.status}</strong>
+          {result?.responses?.map((item) => (
+            <span key={item.platform}>{socialPlatforms[item.platform]?.name}: {item.status || item.error}</span>
+          ))}
+        </div>
+      )}
+
+      <div className="draft-history">
+        <strong>Draft history</strong>
+        {drafts.length === 0 ? <span>No drafts saved yet.</span> : drafts.map((draft) => <span key={draft.id}>{draft.createdAt} - {draft.platforms.join(", ")}</span>)}
       </div>
     </MotionPanel>
   );
 }
 
 function IntegrationsPage() {
+  const { loading, integrations, scheduler, error, refresh } = useIntegrationStatus();
+  const connectedCount = integrations.filter((integration) => integration.status === "connected").length;
+
+  const connect = async (platform) => {
+    const response = await fetch(`${apiBaseUrl}/api/integrations/${platform}/auth`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      window.dispatchEvent(new CustomEvent("hiveai-toast", { detail: data.error || "Connection setup failed" }));
+      return;
+    }
+    window.location.href = data.authUrl;
+  };
+
+  const disconnect = async (platform) => {
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, { method: "POST" });
+    refresh();
+  };
+
   return (
     <motion.div className="integrations-page" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
       <MotionPanel className="panel integrations-hero">
         <div>
           <span className="section-kicker">Account hub</span>
-          <h1>Connect the business workspace</h1>
-          <p>Link the channels your agents need before publishing, reading inbox context, or reporting real campaign results.</p>
+          <h1>Social integrations</h1>
+          <p>Connect X.com, TikTok, Instagram, and Reddit so HiveAI agents can publish, schedule, and report from one secure backend.</p>
         </div>
         <div className="integration-summary">
-          <strong>0 / {integrationAccounts.length}</strong>
+          <strong>{connectedCount} / {integrations.length || 4}</strong>
           <span>accounts connected</span>
         </div>
       </MotionPanel>
 
       <MotionPanel className="panel integrations-panel">
         <div className="panel-title">
-          <h2>Accounts to integrate</h2>
-          <span>OAuth handoff ready</span>
+          <h2>OAuth accounts</h2>
+          <span>{loading ? "Checking" : "OAuth ready"}</span>
         </div>
+        {error && <div className="publish-result error"><strong>{error}</strong></div>}
         <div className="integration-grid">
-          {integrationAccounts.map(({ name, description, status, icon: Icon }) => (
-            <article className="integration-card" key={name}>
-              <div className="integration-icon">
+          {integrations.map((integration, index) => {
+            const meta = socialPlatforms[integration.platform];
+            const Icon = meta?.icon || PlugsConnected;
+            return (
+            <motion.article className="integration-card rich" key={integration.platform} variants={itemVariants} style={{ "--index": index, "--platform-color": meta?.color || "var(--electric-hot)" }}>
+              <div className="integration-icon platform-logo">
                 <Icon size={22} />
               </div>
               <div className="integration-copy">
-                <strong>{name}</strong>
-                <span>{description}</span>
+                <strong>{integration.name}</strong>
+                <span>{integration.description}</span>
               </div>
-              <span className={status === "Setup needed" ? "integration-status warning" : "integration-status"}>
-                {status}
+              <span className={`integration-status ${integration.status}`}>
+                {statusLabel(integration.status)}
               </span>
-              <MagneticButton className="secondary-button integration-action" type="button">
-                <PlugsConnected size={17} />
-                Connect
-              </MagneticButton>
-            </article>
+              <div className="integration-details">
+                <span><Clock size={14} />Last sync: {integration.lastSyncAt ? new Date(integration.lastSyncAt).toLocaleString() : "Never"}</span>
+                <span><UserBadge />Account: {integration.username || "Not connected"}</span>
+                <span>Token expiration: {integration.expiresAt ? new Date(integration.expiresAt).toLocaleString() : "Not issued"}</span>
+                <span>Permissions: {integration.scopes.join(", ")}</span>
+              </div>
+              <div className="analytics-preview">
+                <span>Reach {integration.analytics.reach}</span>
+                <span>Queued {integration.analytics.queued}</span>
+                <span>Errors {integration.analytics.errors}</span>
+              </div>
+              <div className="integration-action-group">
+                <MagneticButton className="secondary-button integration-action" type="button" onClick={() => connect(integration.platform)}>
+                  <PlugsConnected size={17} />
+                  {integration.status === "needs_reconnect" ? "Reconnect" : "Connect"}
+                </MagneticButton>
+                <MagneticButton className="secondary-button integration-action" type="button" onClick={() => disconnect(integration.platform)} disabled={integration.status === "disconnected"}>
+                  Disconnect
+                </MagneticButton>
+              </div>
+            </motion.article>
+            );
+          })}
+        </div>
+      </MotionPanel>
+
+      <PublishWorkspace integrations={integrations} onRefresh={refresh} />
+
+      <MotionPanel className="panel scheduler-panel">
+        <div className="panel-title">
+          <h2>Scheduler architecture</h2>
+          <span>Future database ready</span>
+        </div>
+        <div className="scheduler-grid">
+          {(scheduler?.modes || ["immediate", "scheduled", "recurring", "queue", "retry"]).map((mode) => (
+            <span key={mode}>{mode}</span>
           ))}
         </div>
       </MotionPanel>
     </motion.div>
   );
+}
+
+function UserBadge() {
+  return <UsersThree size={14} />;
 }
 
 function Topbar() {

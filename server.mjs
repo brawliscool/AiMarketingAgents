@@ -3,6 +3,7 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { withSupabase } from "@supabase/server";
+import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 
 const root = process.cwd();
 const distDir = resolve(root, "dist");
@@ -42,6 +43,7 @@ if (!process.env.SUPABASE_PUBLISHABLE_KEY && process.env.VITE_SUPABASE_PUBLISHAB
 const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
 const supabaseSecretKey = env.SUPABASE_SECRET_KEY;
 const openAiCompatibleBaseUrl = process.env.OPENAI_COMPATIBLE_BASE_URL || env.OPENAI_COMPATIBLE_BASE_URL || "https://api.openai.com/v1";
+const metaGraphApiBaseUrl = process.env.META_GRAPH_API_BASE_URL || env.META_GRAPH_API_BASE_URL || "https://graph.facebook.com/v25.0";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -110,9 +112,11 @@ function validateAgentRunPayload(body) {
   const platforms = requiredString(body, "platforms");
   const modelApiKey = requiredString(body, "modelApiKey");
   const socialPlatform = requiredString(body, "socialPlatform");
+  const socialAccountId = requiredString(body, "socialAccountId");
   const socialApiKey = requiredString(body, "socialApiKey");
   const socialLogin = requiredString(body, "socialLogin");
   const socialPassword = requiredString(body, "socialPassword");
+  const publishLive = Boolean(body?.publishLive);
 
   const missing = [];
   if (!modelName) missing.push("modelName");
@@ -120,6 +124,7 @@ function validateAgentRunPayload(body) {
   if (!platforms) missing.push("platforms");
   if (!modelApiKey) missing.push("modelApiKey");
   if (!socialPlatform) missing.push("socialPlatform");
+  if (!socialAccountId) missing.push("socialAccountId");
   if (!socialApiKey && !(socialLogin && socialPassword)) {
     missing.push("socialApiKey or socialLogin+socialPassword");
   }
@@ -134,10 +139,29 @@ function validateAgentRunPayload(body) {
       thingsToAvoid: requiredString(body, "thingsToAvoid"),
       modelApiKey,
       socialPlatform,
+      socialAccountId,
       socialApiKey,
       socialLogin,
       socialPassword,
+      publishLive,
     },
+  };
+}
+
+function normalizePublishPayload(body) {
+  return {
+    text: requiredString(body, "text"),
+    title: requiredString(body, "title"),
+    hashtags: Array.isArray(body?.hashtags)
+      ? body.hashtags.map(String).filter(Boolean)
+      : requiredString(body, "hashtags").split(/\s+/).filter(Boolean),
+    mediaUrls: Array.isArray(body?.mediaUrls) ? body.mediaUrls.map(String).filter(Boolean) : [],
+    videoUrl: requiredString(body, "videoUrl"),
+    imageUrl: requiredString(body, "imageUrl"),
+    subreddit: requiredString(body, "subreddit"),
+    scheduledAt: requiredString(body, "scheduledAt"),
+    campaignId: requiredString(body, "campaignId"),
+    agentId: requiredString(body, "agentId"),
   };
 }
 
@@ -192,21 +216,90 @@ async function generateAgentDraft(values) {
   };
 }
 
-function buildPublishingResult(values) {
+function normalizePlatform(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+async function publishToFacebookPage(values, draftContent) {
+  const endpoint = `${metaGraphApiBaseUrl.replace(/\/$/, "")}/${encodeURIComponent(values.socialAccountId)}/feed`;
+  const body = new URLSearchParams({
+    access_token: values.socialApiKey,
+    message: draftContent,
+  });
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: "publish_failed",
+      providerStatus: response.status,
+      error: data?.error?.message || data?.error?.type || "Facebook Page publish failed",
+    };
+  }
+
+  return {
+    ok: true,
+    status: "published",
+    providerPostId: data?.id || null,
+  };
+}
+
+async function publishDraft(values, draftContent) {
+  const normalizedPlatform = normalizePlatform(values.socialPlatform);
+
+  if (!values.publishLive) {
+    return {
+      ok: true,
+      status: "draft_ready",
+      liveAttempted: false,
+      note: "Live publishing is off. The agent generated content and verified publishing access only.",
+    };
+  }
+
+  if (!values.socialApiKey) {
+    return {
+      ok: false,
+      status: "oauth_or_api_token_required",
+      liveAttempted: false,
+      note: "Live posting requires an official platform API token. Username and password are accepted for gating, but not used for automated login.",
+    };
+  }
+
+  if (normalizedPlatform === "facebook" || normalizedPlatform === "facebookpage") {
+    return publishToFacebookPage(values, draftContent);
+  }
+
+  return {
+    ok: false,
+    status: "adapter_not_available",
+    liveAttempted: false,
+    note: `${values.socialPlatform} access was received, but a live publishing adapter has not been added for that platform yet.`,
+  };
+}
+
+function buildPublishingResult(values, publishResult) {
   const accessMethod = values.socialApiKey ? "api_token" : "login_credentials";
 
   return {
     platform: values.socialPlatform,
+    accountId: values.socialAccountId,
     requestedPlatforms: values.platforms,
     accessMethod,
+    liveRequested: values.publishLive,
     credentialFingerprint: credentialFingerprint(values.socialApiKey || `${values.socialLogin}:${values.socialPassword}`),
-    canPublishAutomatically: Boolean(values.socialApiKey),
-    status: values.socialApiKey
-      ? "ready_for_platform_api"
-      : "credentials_received_manual_or_oauth_required",
-    note: values.socialApiKey
-      ? "Platform access token was provided. Add the platform-specific API adapter next to publish live."
-      : "Login credentials were provided but live social posting should use official OAuth/API access instead of automated password login.",
+    canPublishAutomatically: Boolean(values.socialApiKey && values.socialAccountId),
+    status: publishResult.status,
+    providerStatus: publishResult.providerStatus,
+    providerPostId: publishResult.providerPostId,
+    note: publishResult.note || (publishResult.ok ? "Publishing step completed." : publishResult.error),
   };
 }
 
@@ -240,13 +333,15 @@ async function handleAgentRun(req, res) {
     return;
   }
 
+  const publishResult = await publishDraft(values, draft.content);
+
   sendJson(res, 200, {
-    ok: true,
+    ok: publishResult.ok,
     runId: randomUUID(),
     model: draft.model,
     draft: draft.content,
     usage: draft.usage,
-    publishing: buildPublishingResult(values),
+    publishing: buildPublishingResult(values, publishResult),
     secrets: {
       modelApiKey: "received_redacted",
       socialApiKey: values.socialApiKey ? "received_redacted" : "not_provided",
@@ -254,6 +349,72 @@ async function handleAgentRun(req, res) {
       socialPassword: values.socialPassword ? "received_redacted" : "not_provided",
     },
   });
+}
+
+async function handleIntegrationRoutes(req, res, url) {
+  if (url.pathname === "/api/integrations/status") {
+    if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
+    return sendJson(res, 200, {
+      integrations: socialService.getAllStatus(),
+      scheduler: {
+        modes: ["immediate", "scheduled", "recurring", "queue", "retry"],
+        pendingQueue: 0,
+      },
+    });
+  }
+
+  const match = url.pathname.match(/^\/api\/integrations\/([^/]+)\/(auth|callback|disconnect|refresh|publish)$/);
+  if (!match) return false;
+
+  let platform;
+  try {
+    platform = parsePlatformOrThrow(match[1]);
+  } catch (error) {
+    return sendJson(res, error.status || 400, { error: error.message });
+  }
+
+  const action = match[2];
+  try {
+    if (action === "auth") {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
+      const result = socialService.connect(platform);
+      return sendJson(res, 200, result);
+    }
+
+    if (action === "callback") {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
+      const integration = await socialService.callback(platform, {
+        code: url.searchParams.get("code"),
+        state: url.searchParams.get("state"),
+      });
+      return sendJson(res, 200, { ok: true, integration: socialService.getStatus(platform), savedAt: integration.updatedAt });
+    }
+
+    if (action === "disconnect") {
+      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+      return sendJson(res, 200, socialService.disconnect(platform));
+    }
+
+    if (action === "refresh") {
+      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+      socialService.refresh(platform);
+      return sendJson(res, 200, { ok: true, integration: socialService.getStatus(platform) });
+    }
+
+    if (action === "publish") {
+      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+      const body = await readJsonBody(req);
+      const result = socialService.publish(platform, normalizePublishPayload(body));
+      return sendJson(res, result.success ? 202 : 409, result);
+    }
+  } catch (error) {
+    return sendJson(res, error.status || 500, {
+      error: error.message || "Integration request failed",
+      missing: error.missing || undefined,
+    });
+  }
+
+  return false;
 }
 
 const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) => {
@@ -354,11 +515,19 @@ createServer((req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/api/integrations")) {
+    handleIntegrationRoutes(req, res, url).catch((error) => {
+      sendJson(res, 500, { error: error instanceof Error ? error.message : "Unknown integration error" });
+    });
+    return;
+  }
+
   if (url.pathname === "/api/health") {
     sendJson(res, 200, {
       ok: true,
       supabaseConfigured: Boolean(supabaseUrl && supabaseSecretKey),
       agentRunEndpoint: "/api/agents/run",
+      integrationsEndpoint: "/api/integrations/status",
     });
     return;
   }
