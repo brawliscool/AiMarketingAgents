@@ -448,6 +448,49 @@ img {
   text-transform: uppercase;
 }
 
+.supabase-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.supabase-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.supabase-list {
+  display: grid;
+  gap: 8px;
+}
+
+.supabase-row,
+.supabase-empty,
+.supabase-error {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.supabase-row strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.supabase-row span,
+.supabase-empty,
+.supabase-error {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.supabase-error {
+  color: #ffb6b6;
+  border-color: rgba(255, 182, 182, 0.22);
+  background: rgba(255, 80, 80, 0.06);
+}
+
 .agent-list {
   display: grid;
   gap: 8px;

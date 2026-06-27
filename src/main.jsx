@@ -37,6 +37,7 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import "./styles.css";
+import { createClient as createSupabaseClient } from "./utils/supabase/client.js";
 
 const spring = { type: "spring", stiffness: 110, damping: 20, mass: 0.8 };
 const fastSpring = { type: "spring", stiffness: 360, damping: 28, mass: 0.7 };
@@ -877,6 +878,97 @@ function WarningBar() {
   );
 }
 
+function SupabaseStatus() {
+  const [state, setState] = useState({
+    loading: true,
+    connected: false,
+    error: "",
+    rows: [],
+  });
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadTodos() {
+      try {
+        const supabase = createSupabaseClient();
+        const { data, error } = await supabase.from("todos").select("*").limit(5);
+
+        if (!alive) {
+          return;
+        }
+
+        if (error) {
+          setState({
+            loading: false,
+            connected: false,
+            error: error.message,
+            rows: [],
+          });
+          return;
+        }
+
+        setState({
+          loading: false,
+          connected: true,
+          error: "",
+          rows: data ?? [],
+        });
+      } catch (err) {
+        if (!alive) {
+          return;
+        }
+
+        setState({
+          loading: false,
+          connected: false,
+          error: err instanceof Error ? err.message : "Unknown Supabase error",
+          rows: [],
+        });
+      }
+    }
+
+    loadTodos();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return (
+    <MotionPanel className="panel supabase-panel">
+      <div className="panel-title">
+        <h2>Supabase backend</h2>
+        <span>{state.loading ? "Checking" : state.connected ? "Live" : "Not ready"}</span>
+      </div>
+      {state.loading ? (
+        <p className="supabase-copy">Connecting to Supabase and reading the `todos` table.</p>
+      ) : state.connected ? (
+        <>
+          <p className="supabase-copy">Connected. Showing the first {state.rows.length} rows from `todos`.</p>
+          <div className="supabase-list">
+            {state.rows.length === 0 ? (
+              <div className="supabase-empty">No rows returned from `todos`.</div>
+            ) : (
+              state.rows.map((row) => (
+                <div className="supabase-row" key={row.id ?? row.name ?? JSON.stringify(row)}>
+                  <strong>{row.name ?? row.title ?? "Untitled row"}</strong>
+                  <span>{row.id ? `ID ${row.id}` : "No id field"}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="supabase-copy">The app could not reach Supabase.</p>
+          <div className="supabase-error">{state.error}</div>
+        </>
+      )}
+    </MotionPanel>
+  );
+}
+
 function MobileSummary() {
   return (
     <MotionPanel className="mobile-signal panel">
@@ -964,6 +1056,7 @@ function App() {
         <motion.div className="desktop-grid" variants={{ animate: { transition: { staggerChildren: 0.09 } } }}>
           <SignalBoard />
           <CurrentBrief />
+          <SupabaseStatus />
           <Launches />
           <BottomCards />
         </motion.div>
