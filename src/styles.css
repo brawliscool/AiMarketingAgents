@@ -1000,17 +1000,17 @@ img {
 
 .agents-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .agent-entry {
   display: grid;
-  grid-template-columns: 12px 40px minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: 10px 34px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 11px 14px;
+  padding: 7px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background:
     radial-gradient(circle at 92% 10%, rgba(86, 182, 255, 0.08), transparent 24%),
     rgba(255, 255, 255, 0.016);
@@ -1028,8 +1028,8 @@ img {
 }
 
 .agent-led {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   box-shadow: 0 0 18px transparent;
 }
@@ -1047,10 +1047,10 @@ img {
 .agent-entry-icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   color: #fff;
-  border-radius: 10px;
+  border-radius: 9px;
   background: linear-gradient(145deg, #0b73ea, var(--electric-deep));
   animation: icon-float 4.4s ease-in-out infinite;
 }
@@ -1063,27 +1063,28 @@ img {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .agent-entry-top h3 {
   margin: 0;
-  font-size: 0.99rem;
+  font-size: 0.93rem;
+  line-height: 1.05;
 }
 
 .agent-entry-top p {
-  margin: 3px 0 0;
+  margin: 1px 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.25;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .agent-state {
-  padding: 4px 8px;
+  padding: 3px 7px;
   border: 1px solid var(--line);
   border-radius: 999px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
 }
 
@@ -1100,7 +1101,8 @@ img {
 }
 
 .agent-activity {
-  margin-top: 7px;
+  display: none;
+  margin-top: 0;
   color: var(--muted);
   line-height: 1.35;
   font-size: 0.88rem;
@@ -1109,18 +1111,18 @@ img {
 .agent-entry-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .agent-action {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 0 11px;
+  min-height: 28px;
+  padding: 0 9px;
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 220ms ease, background 220ms ease, opacity 220ms ease;
@@ -2302,15 +2304,15 @@ img {
   }
 
   .agent-entry {
-    grid-template-columns: 10px 36px minmax(0, 1fr);
-    gap: 10px;
-    align-items: start;
-    padding: 10px 12px;
+    grid-template-columns: 8px 30px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
   }
 
   .agent-entry-actions {
     grid-column: 2 / -1;
-    margin-top: 2px;
+    margin-top: 0;
     flex-wrap: wrap;
   }
 
