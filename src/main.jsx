@@ -26,7 +26,6 @@ import {
   PlugsConnected,
   Plus,
   Play,
-  ShieldWarning,
   SquaresFour,
   Storefront,
   Square,
@@ -170,6 +169,8 @@ const publishingAccessFields = [
   { id: "socialLogin", label: "Platform login email or username" },
   { id: "socialPassword", label: "Platform password", type: "password" },
 ];
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8787";
 
 const liveAgentCards = [
   ["Research Agent", "Finding audience pain points", "Running", 72, Target],
@@ -491,6 +492,11 @@ function BriefsPage() {
   const [publishingAccessValues, setPublishingAccessValues] = useState(() =>
     Object.fromEntries(publishingAccessFields.map((field) => [field.id, ""])),
   );
+  const [agentRunState, setAgentRunState] = useState({
+    status: "idle",
+    message: "",
+    result: null,
+  });
   const requiredFieldsComplete = briefBuilderFields
     .filter((field) => field.required)
     .every((field) => briefValues[field.id].trim().length > 0);
@@ -514,6 +520,48 @@ function BriefsPage() {
       ...currentValues,
       [fieldId]: value,
     }));
+  };
+
+  const runAgent = async () => {
+    if (!builderReady || agentRunState.status === "running") {
+      return;
+    }
+
+    setAgentRunState({
+      status: "running",
+      message: "Running agent through backend...",
+      result: null,
+    });
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/agents/run`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...briefValues,
+          ...publishingAccessValues,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Agent run failed");
+      }
+
+      setAgentRunState({
+        status: "complete",
+        message: "Agent run completed",
+        result: data,
+      });
+    } catch (error) {
+      setAgentRunState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Agent run failed",
+        result: null,
+      });
+    }
   };
 
   return (
@@ -610,11 +658,31 @@ function BriefsPage() {
                   ? "Complete model fields to hand off"
                   : "Add social API key or login to post"}
             </div>
-            <MagneticButton className="secondary-button" type="button">
-              <ShieldWarning size={18} />
-              Review guardrails
+            <MagneticButton
+              className={builderReady ? "primary-button" : "secondary-button"}
+              type="button"
+              onClick={runAgent}
+              disabled={!builderReady || agentRunState.status === "running"}
+            >
+              <Play size={18} weight="fill" />
+              {agentRunState.status === "running" ? "Running agent" : "Run first agent"}
             </MagneticButton>
           </div>
+          {agentRunState.status !== "idle" && (
+            <div className={`agent-run-result ${agentRunState.status}`}>
+              <div className="agent-run-head">
+                <strong>{agentRunState.message}</strong>
+                {agentRunState.result?.runId && <span>{agentRunState.result.runId.slice(0, 8)}</span>}
+              </div>
+              {agentRunState.result?.draft && <p>{agentRunState.result.draft}</p>}
+              {agentRunState.result?.publishing && (
+                <div className="agent-run-meta">
+                  <span>{agentRunState.result.publishing.platform}</span>
+                  <span>{agentRunState.result.publishing.status}</span>
+                </div>
+              )}
+            </div>
+          )}
         </MotionPanel>
 
         <MotionPanel className="panel live-workspace">

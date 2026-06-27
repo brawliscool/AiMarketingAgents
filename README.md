@@ -66,6 +66,25 @@ npm install
 npm run dev
 ```
 
+### Run the backend
+
+```bash
+npm run backend
+```
+
+The backend listens on `http://127.0.0.1:8787` and exposes:
+
+- `GET /api/health` - backend health and configuration check
+- `POST /api/agents/run` - runs the Agent builder through an OpenAI-compatible chat endpoint
+
+The Agent builder sends the user's model API key and social publishing access to this endpoint for the current run only. The backend redacts secrets in responses and requires either a social API/access token or login credentials before it will run a posting-capable agent. Live social publishing still needs platform-specific OAuth/API adapters for Instagram, Facebook, TikTok, and other channels.
+
+Optional backend environment:
+
+```bash
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+```
+
 ### Build for production
 
 ```bash
