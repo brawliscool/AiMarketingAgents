@@ -18,6 +18,9 @@
   --mint: #87ee9c;
   --amber: #f6c54f;
   --radius: 18px;
+  --honeycomb-cell: 118px;
+  --honeycomb-line: rgba(56, 160, 255, 0.13);
+  --honeycomb-line-soft: rgba(86, 182, 255, 0.055);
 }
 
 * {
@@ -35,8 +38,9 @@ body {
   color: var(--ink);
   font-family: "Geist", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 45% 22%, rgba(27, 140, 255, 0.15), transparent 28%),
+    radial-gradient(circle at 42% 18%, rgba(27, 140, 255, 0.18), transparent 27%),
     radial-gradient(circle at 80% 88%, rgba(86, 182, 255, 0.08), transparent 30%),
+    radial-gradient(circle at 16% 72%, rgba(27, 140, 255, 0.065), transparent 26%),
     linear-gradient(180deg, #0f0d14 0%, #08070c 100%);
 }
 
@@ -80,6 +84,8 @@ img {
 }
 
 .app-shell {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100dvh;
@@ -88,11 +94,54 @@ img {
   margin: 12px;
   overflow: hidden;
   background:
-    linear-gradient(rgba(216, 202, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(216, 202, 255, 0.025) 1px, transparent 1px),
+    radial-gradient(circle at 35% 9%, rgba(86, 182, 255, 0.18), transparent 18%),
+    radial-gradient(circle at 76% 39%, rgba(27, 140, 255, 0.1), transparent 22%),
+    linear-gradient(180deg, rgba(15, 17, 28, 0.76), rgba(7, 7, 12, 0.94)),
     rgba(8, 7, 12, 0.86);
-  background-size: 44px 44px;
   animation: shell-enter 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.app-shell::before {
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.82;
+  background:
+    radial-gradient(circle at 35% 9%, rgba(86, 182, 255, 0.34) 0 1px, transparent 3px),
+    radial-gradient(circle at 50% 36%, rgba(86, 182, 255, 0.26) 0 1px, transparent 3px),
+    radial-gradient(circle at 44% 48%, rgba(86, 182, 255, 0.18) 0 1px, transparent 3px),
+    linear-gradient(30deg, transparent 0 47%, var(--honeycomb-line) 47.5% 48.4%, transparent 49% 100%),
+    linear-gradient(150deg, transparent 0 47%, var(--honeycomb-line) 47.5% 48.4%, transparent 49% 100%),
+    linear-gradient(90deg, transparent 0 47%, var(--honeycomb-line-soft) 47.5% 48.4%, transparent 49% 100%);
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0,
+    0 0,
+    calc(var(--honeycomb-cell) / 2) 0;
+  background-size:
+    calc(var(--honeycomb-cell) * 3) calc(var(--honeycomb-cell) * 2.06),
+    calc(var(--honeycomb-cell) * 3) calc(var(--honeycomb-cell) * 2.06),
+    calc(var(--honeycomb-cell) * 3) calc(var(--honeycomb-cell) * 2.06),
+    var(--honeycomb-cell) calc(var(--honeycomb-cell) * 1.73),
+    var(--honeycomb-cell) calc(var(--honeycomb-cell) * 1.73),
+    var(--honeycomb-cell) calc(var(--honeycomb-cell) * 1.73);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.72), #000 18% 74%, rgba(0, 0, 0, 0.48));
+}
+
+.app-shell::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 37% 10%, rgba(86, 182, 255, 0.15), transparent 13%),
+    radial-gradient(circle at 48% 38%, rgba(27, 140, 255, 0.11), transparent 12%),
+    linear-gradient(90deg, rgba(5, 5, 9, 0.14), transparent 18% 70%, rgba(5, 5, 9, 0.42));
 }
 
 .sidebar {
