@@ -1,16 +1,28 @@
+let mobileMenuReady = false;
+
 function setupMobileMenu() {
+  if (mobileMenuReady) {
+    return true;
+  }
+
   const menuButton = document.querySelector(".mobile-menu");
   const sidebar = document.querySelector(".sidebar");
 
-  if (!menuButton || !sidebar || document.querySelector(".mobile-backdrop")) {
-    return;
+  if (!menuButton || !sidebar) {
+    return false;
   }
 
-  const backdrop = document.createElement("button");
-  backdrop.type = "button";
-  backdrop.className = "mobile-backdrop";
-  backdrop.setAttribute("aria-label", "Close navigation");
-  document.body.appendChild(backdrop);
+  mobileMenuReady = true;
+
+  let backdrop = document.querySelector(".mobile-backdrop");
+
+  if (!backdrop) {
+    backdrop = document.createElement("button");
+    backdrop.type = "button";
+    backdrop.className = "mobile-backdrop";
+    backdrop.setAttribute("aria-label", "Close navigation");
+    document.body.appendChild(backdrop);
+  }
 
   const closeMenu = () => {
     document.body.classList.remove("mobile-nav-open");
@@ -47,10 +59,35 @@ function setupMobileMenu() {
       closeMenu();
     }
   });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 980) {
+      closeMenu();
+    }
+  });
+
+  return true;
+}
+
+function watchForMobileMenu() {
+  if (setupMobileMenu()) {
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    if (setupMobileMenu()) {
+      observer.disconnect();
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupMobileMenu);
+  document.addEventListener("DOMContentLoaded", watchForMobileMenu);
 } else {
-  setupMobileMenu();
+  watchForMobileMenu();
 }
