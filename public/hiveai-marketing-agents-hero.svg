@@ -1,0 +1,142 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(760 235) rotate(90) scale(430 620)">
+      <stop stop-color="#1B8CFF" stop-opacity="0.42"/>
+      <stop offset="0.48" stop-color="#56B6FF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#0D0B12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1290 820) rotate(90) scale(380 450)">
+      <stop stop-color="#56B6FF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#0D0B12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bg" x1="800" y1="0" x2="800" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#100E17"/>
+      <stop offset="1" stop-color="#08070C"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#56B6FF"/>
+      <stop offset="1" stop-color="#0A6FE8"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#171420" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#0E0C14" stop-opacity="0.94"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="34" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="blueShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="24" flood-color="#1B8CFF" flood-opacity="0.45"/>
+    </filter>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#D8CAFF" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <rect width="1600" height="1000" fill="url(#glow1)"/>
+  <rect width="1600" height="1000" fill="url(#glow2)"/>
+  <g opacity="0.9">
+    <circle cx="1180" cy="230" r="210" stroke="#56B6FF" stroke-opacity="0.08" stroke-width="1"/>
+    <circle cx="1180" cy="230" r="140" stroke="#56B6FF" stroke-opacity="0.12" stroke-width="1"/>
+    <circle cx="1180" cy="230" r="74" stroke="#56B6FF" stroke-opacity="0.16" stroke-width="1"/>
+  </g>
+  <g filter="url(#softShadow)">
+    <rect x="95" y="78" width="1410" height="844" rx="38" fill="#08070C" fill-opacity="0.72" stroke="#D8CAFF" stroke-opacity="0.12"/>
+    <rect x="133" y="116" width="270" height="768" rx="24" fill="url(#panel)" stroke="#D8CAFF" stroke-opacity="0.1"/>
+    <rect x="434" y="116" width="1033" height="768" rx="24" fill="url(#panel)" stroke="#D8CAFF" stroke-opacity="0.1"/>
+  </g>
+  <g transform="translate(168 150)">
+    <rect width="56" height="56" rx="14" fill="url(#blue)" filter="url(#blueShadow)"/>
+    <path d="M32 9L17 33H30L25 48L41 24H28L32 9Z" fill="white"/>
+    <text x="74" y="36" fill="#FBF8FF" font-size="31" font-family="Inter, Arial, sans-serif" font-weight="800">HiveAI</text>
+    <text x="0" y="104" fill="#746A86" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="600">AI MARKETING OS</text>
+    <g transform="translate(0 145)">
+      <rect width="214" height="48" rx="12" fill="#FFFFFF" fill-opacity="0.045" stroke="#D8CAFF" stroke-opacity="0.11"/>
+      <rect x="-2" y="7" width="4" height="34" rx="2" fill="#56B6FF"/>
+      <circle cx="28" cy="24" r="8" fill="#56B6FF" fill-opacity="0.9"/>
+      <text x="48" y="30" fill="#FBF8FF" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="700">Command center</text>
+    </g>
+    <g transform="translate(0 207)" opacity="0.78">
+      <circle cx="28" cy="24" r="8" fill="#AAA0BD"/>
+      <text x="48" y="30" fill="#C8C0D6" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="600">Agents</text>
+    </g>
+    <g transform="translate(0 262)" opacity="0.68">
+      <circle cx="28" cy="24" r="8" fill="#AAA0BD"/>
+      <text x="48" y="30" fill="#C8C0D6" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="600">Campaigns</text>
+    </g>
+    <g transform="translate(0 317)" opacity="0.68">
+      <circle cx="28" cy="24" r="8" fill="#AAA0BD"/>
+      <text x="48" y="30" fill="#C8C0D6" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="600">Insights</text>
+    </g>
+    <g transform="translate(0 618)">
+      <rect width="214" height="86" rx="16" fill="#FFFFFF" fill-opacity="0.03" stroke="#D8CAFF" stroke-opacity="0.12"/>
+      <text x="18" y="30" fill="#AAA0BD" font-size="13" font-family="Inter, Arial, sans-serif" font-weight="700">SYSTEM STATUS</text>
+      <text x="18" y="61" fill="#FBF8FF" font-size="19" font-family="Inter, Arial, sans-serif" font-weight="800">5 agents online</text>
+      <circle cx="185" cy="54" r="9" fill="#87EE9C"/>
+    </g>
+  </g>
+  <g transform="translate(488 170)">
+    <text x="0" y="38" fill="#56B6FF" font-size="17" font-family="Inter, Arial, sans-serif" font-weight="800" letter-spacing="4">AUTONOMOUS MARKETING AGENTS</text>
+    <text x="0" y="114" fill="#FBF8FF" font-size="62" font-family="Inter, Arial, sans-serif" font-weight="900">Run your content</text>
+    <text x="0" y="184" fill="#FBF8FF" font-size="62" font-family="Inter, Arial, sans-serif" font-weight="900">engine from one hive.</text>
+    <text x="0" y="236" fill="#AAA0BD" font-size="24" font-family="Inter, Arial, sans-serif" font-weight="500">Strategy, posts, videos, scheduling, and analytics handled by AI agents.</text>
+    <g transform="translate(0 286)">
+      <rect width="184" height="56" rx="16" fill="url(#blue)" filter="url(#blueShadow)"/>
+      <text x="32" y="36" fill="#FFFFFF" font-size="17" font-family="Inter, Arial, sans-serif" font-weight="800">Launch agents</text>
+      <rect x="204" width="218" height="56" rx="16" fill="#FFFFFF" fill-opacity="0.04" stroke="#D8CAFF" stroke-opacity="0.14"/>
+      <text x="235" y="36" fill="#FBF8FF" font-size="17" font-family="Inter, Arial, sans-serif" font-weight="700">View campaign plan</text>
+    </g>
+  </g>
+  <g transform="translate(510 585)" filter="url(#softShadow)">
+    <rect width="270" height="188" rx="26" fill="#15121F" stroke="#D8CAFF" stroke-opacity="0.12"/>
+    <text x="24" y="42" fill="#AAA0BD" font-size="14" font-family="Inter, Arial, sans-serif" font-weight="700">CONTENT AGENT</text>
+    <text x="24" y="78" fill="#FBF8FF" font-size="25" font-family="Inter, Arial, sans-serif" font-weight="800">12 posts drafted</text>
+    <path d="M24 137 C70 92, 108 162, 148 118 S221 72, 244 101" stroke="#56B6FF" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="244" cy="101" r="8" fill="#56B6FF"/>
+  </g>
+  <g transform="translate(814 585)" filter="url(#softShadow)">
+    <rect width="270" height="188" rx="26" fill="#15121F" stroke="#D8CAFF" stroke-opacity="0.12"/>
+    <text x="24" y="42" fill="#AAA0BD" font-size="14" font-family="Inter, Arial, sans-serif" font-weight="700">VIDEO AGENT</text>
+    <text x="24" y="78" fill="#FBF8FF" font-size="25" font-family="Inter, Arial, sans-serif" font-weight="800">8 scripts ready</text>
+    <rect x="24" y="105" width="220" height="46" rx="14" fill="#FFFFFF" fill-opacity="0.045"/>
+    <path d="M112 118L112 139L132 128.5L112 118Z" fill="#56B6FF"/>
+  </g>
+  <g transform="translate(1118 585)" filter="url(#softShadow)">
+    <rect width="270" height="188" rx="26" fill="#15121F" stroke="#D8CAFF" stroke-opacity="0.12"/>
+    <text x="24" y="42" fill="#AAA0BD" font-size="14" font-family="Inter, Arial, sans-serif" font-weight="700">AD AGENT</text>
+    <text x="24" y="78" fill="#FBF8FF" font-size="25" font-family="Inter, Arial, sans-serif" font-weight="800">Hooks testing</text>
+    <rect x="24" y="113" width="82" height="14" rx="7" fill="#56B6FF"/>
+    <rect x="24" y="140" width="184" height="14" rx="7" fill="#FFFFFF" fill-opacity="0.12"/>
+  </g>
+  <g transform="translate(1038 192)" filter="url(#softShadow)">
+    <rect width="330" height="294" rx="30" fill="#15121F" stroke="#56B6FF" stroke-opacity="0.24"/>
+    <rect x="28" y="28" width="274" height="50" rx="16" fill="#FFFFFF" fill-opacity="0.045"/>
+    <circle cx="55" cy="53" r="10" fill="#56B6FF"/>
+    <text x="78" y="59" fill="#FBF8FF" font-size="17" font-family="Inter, Arial, sans-serif" font-weight="800">Campaign calendar</text>
+    <g transform="translate(30 108)">
+      <rect width="58" height="58" rx="16" fill="#FFFFFF" fill-opacity="0.035" stroke="#D8CAFF" stroke-opacity="0.1"/>
+      <text x="19" y="37" fill="#AAA0BD" font-size="19" font-family="Inter, Arial, sans-serif" font-weight="800">26</text>
+      <rect x="72" width="58" height="58" rx="16" fill="#1B8CFF" fill-opacity="0.2" stroke="#56B6FF" stroke-opacity="0.52"/>
+      <text x="91" y="37" fill="#FBF8FF" font-size="19" font-family="Inter, Arial, sans-serif" font-weight="800">27</text>
+      <rect x="144" width="58" height="58" rx="16" fill="#FFFFFF" fill-opacity="0.035" stroke="#D8CAFF" stroke-opacity="0.1"/>
+      <text x="163" y="37" fill="#AAA0BD" font-size="19" font-family="Inter, Arial, sans-serif" font-weight="800">28</text>
+      <rect x="216" width="58" height="58" rx="16" fill="#FFFFFF" fill-opacity="0.035" stroke="#D8CAFF" stroke-opacity="0.1"/>
+      <text x="235" y="37" fill="#AAA0BD" font-size="19" font-family="Inter, Arial, sans-serif" font-weight="800">29</text>
+    </g>
+    <g transform="translate(30 196)">
+      <rect width="274" height="58" rx="17" fill="#FFFFFF" fill-opacity="0.04"/>
+      <text x="18" y="35" fill="#FBF8FF" font-size="16" font-family="Inter, Arial, sans-serif" font-weight="800">Launch creator-led retargeting</text>
+      <circle cx="248" cy="29" r="8" fill="#87EE9C"/>
+    </g>
+  </g>
+  <g opacity="0.72">
+    <path d="M940 520 C990 480, 1030 461, 1088 432" stroke="#56B6FF" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="8 12"/>
+    <path d="M870 520 C835 480, 795 455, 724 432" stroke="#56B6FF" stroke-opacity="0.20" stroke-width="2" stroke-dasharray="8 12"/>
+    <path d="M1022 520 C1070 548, 1122 555, 1190 540" stroke="#56B6FF" stroke-opacity="0.18" stroke-width="2" stroke-dasharray="8 12"/>
+  </g>
+  <g transform="translate(726 408)" filter="url(#blueShadow)">
+    <path d="M91 0L169 45V135L91 180L13 135V45L91 0Z" fill="#0E1F38" stroke="#56B6FF" stroke-opacity="0.58" stroke-width="3"/>
+    <path d="M101 34L66 93H93L82 146L121 75H94L101 34Z" fill="url(#blue)"/>
+  </g>
+  <text x="98" y="955" fill="#746A86" font-size="17" font-family="Inter, Arial, sans-serif" font-weight="600">HiveAI · premium AI marketing dashboard · grey + electric blue SaaS visual</text>
+</svg>
