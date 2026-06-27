@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AnimatePresence,
@@ -37,7 +37,54 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import "./styles.css";
-import { createClient as createSupabaseClient } from "./utils/supabase/client.js";
+
+function LogoMark() {
+  const uid = useId();
+  const blueId = `${uid}-blue`;
+  const grayId = `${uid}-gray`;
+  const coreId = `${uid}-core`;
+  const shadowId = `${uid}-shadow`;
+
+  return (
+    <svg className="brand-mark" viewBox="0 0 128 128" aria-hidden="true">
+      <defs>
+        <linearGradient id={blueId} x1="18" y1="16" x2="110" y2="112" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#6bb6ff" />
+          <stop offset="0.55" stopColor="#1f87ff" />
+          <stop offset="1" stopColor="#0a5fdc" />
+        </linearGradient>
+        <linearGradient id={grayId} x1="26" y1="18" x2="96" y2="112" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#9ea1ad" />
+          <stop offset="1" stopColor="#585d68" />
+        </linearGradient>
+        <linearGradient id={coreId} x1="50" y1="44" x2="78" y2="88" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#bfc3cb" />
+          <stop offset="1" stopColor="#666a76" />
+        </linearGradient>
+        <filter id={shadowId} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#000000" floodOpacity=".45" />
+        </filter>
+      </defs>
+      <rect x="16" y="16" width="96" height="96" rx="24" fill="#06070c" />
+      <g filter={`url(#${shadowId})`}>
+        <rect x="32" y="22" width="19" height="56" rx="4" transform="rotate(56 41.5 50)" fill={`url(#${grayId})`} />
+        <rect x="77" y="22" width="19" height="56" rx="4" transform="rotate(-56 86.5 50)" fill={`url(#${blueId})`} />
+        <rect x="18" y="53" width="19" height="56" rx="4" transform="rotate(0 27.5 81)" fill={`url(#${grayId})`} />
+        <rect x="91" y="53" width="19" height="56" rx="4" transform="rotate(0 100.5 81)" fill={`url(#${blueId})`} />
+        <rect x="28" y="87" width="19" height="56" rx="4" transform="rotate(56 37.5 115)" fill={`url(#${grayId})`} />
+        <rect x="81" y="87" width="19" height="56" rx="4" transform="rotate(-56 90.5 115)" fill={`url(#${blueId})`} />
+      </g>
+      <path d="M64 46c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20Z" fill={`url(#${coreId})`} />
+      <path d="M59 63c-4-8-6-15-2-18 2-2 7-2 9 0 4 3 2 10-2 18" fill="#4c4f59" opacity=".95" />
+      <rect x="57" y="84" width="14" height="13" rx="6" fill={`url(#${grayId})`} />
+      <rect x="53" y="97" width="22" height="10" rx="5" fill={`url(#${blueId})`} />
+      <path d="M61 27c-4 2-7 6-8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
+      <path d="M67 27c4 2 7 6 8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
+      <circle cx="58" cy="58" r="2.2" fill="#0e0f14" />
+      <circle cx="70" cy="58" r="2.2" fill="#0e0f14" />
+    </svg>
+  );
+}
 
 const spring = { type: "spring", stiffness: 110, damping: 20, mass: 0.8 };
 const fastSpring = { type: "spring", stiffness: 360, damping: 28, mass: 0.7 };
@@ -191,9 +238,7 @@ function Sidebar({ currentPage, onNavigate }) {
   return (
     <motion.aside className="sidebar" aria-label="Workspace navigation" initial={{ x: -22, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={spring}>
       <a className="brand" href="/" aria-label="HiveAI home">
-        <span className="brand-mark">
-          <Lightning size={19} weight="fill" />
-        </span>
+        <LogoMark />
         HiveAI
       </a>
 
@@ -624,9 +669,7 @@ function Topbar() {
         <List size={23} />
       </button>
       <a className="mobile-brand" href="/" aria-label="HiveAI home">
-        <span className="brand-mark">
-          <Lightning size={17} weight="fill" />
-        </span>
+        <LogoMark />
         HiveAI
       </a>
       <span className="date-select">Thursday, Jun 26</span>
@@ -891,18 +934,18 @@ function SupabaseStatus() {
 
     async function loadTodos() {
       try {
-        const supabase = createSupabaseClient();
-        const { data, error } = await supabase.from("todos").select("*").limit(5);
+        const response = await fetch("/api/todos");
+        const payload = await response.json();
 
         if (!alive) {
           return;
         }
 
-        if (error) {
+        if (!response.ok) {
           setState({
             loading: false,
             connected: false,
-            error: error.message,
+            error: payload?.error || `Request failed with status ${response.status}`,
             rows: [],
           });
           return;
@@ -912,7 +955,7 @@ function SupabaseStatus() {
           loading: false,
           connected: true,
           error: "",
-          rows: data ?? [],
+          rows: Array.isArray(payload) ? payload : [],
         });
       } catch (err) {
         if (!alive) {
@@ -942,7 +985,7 @@ function SupabaseStatus() {
         <span>{state.loading ? "Checking" : state.connected ? "Live" : "Not ready"}</span>
       </div>
       {state.loading ? (
-        <p className="supabase-copy">Connecting to Supabase and reading the `todos` table.</p>
+        <p className="supabase-copy">Connecting to the backend and reading the `todos` table.</p>
       ) : state.connected ? (
         <>
           <p className="supabase-copy">Connected. Showing the first {state.rows.length} rows from `todos`.</p>
