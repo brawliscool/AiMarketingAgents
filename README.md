@@ -1,6 +1,6 @@
-# MarketAI
+# HiveAI
 
-MarketAI is a premium AI marketing dashboard for small businesses, creators, and growing brands. The app presents a coordinated workspace for planning, creating, scheduling, and reviewing marketing activity from one interface.
+HiveAI is a premium AI marketing dashboard for small businesses, creators, and growing brands. The app presents a coordinated workspace for planning, creating, scheduling, and reviewing marketing activity from one interface.
 
 ## Live Demo
 

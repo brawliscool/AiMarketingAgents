@@ -1005,7 +1005,7 @@ img {
 
 .agent-entry {
   display: grid;
-  grid-template-columns: 8px 28px minmax(0, 1fr) auto;
+  grid-template-columns: 8px 28px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   padding: 5px 10px;
@@ -1061,9 +1061,16 @@ img {
 
 .agent-entry-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
+}
+
+.agent-entry-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .agent-entry-top h3 {
@@ -1112,6 +1119,7 @@ img {
 .agent-entry-actions {
   display: flex;
   align-items: center;
+  margin-left: auto;
   gap: 3px;
 }
 
@@ -1127,6 +1135,10 @@ img {
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 220ms ease, background 220ms ease, opacity 220ms ease;
+}
+
+.agent-role {
+  display: none;
 }
 
 .agent-action:hover:not(:disabled) {
@@ -2312,7 +2324,6 @@ img {
   }
 
   .agent-entry-actions {
-    grid-column: 2 / -1;
     margin-top: 0;
     flex-wrap: wrap;
   }

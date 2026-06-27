@@ -189,11 +189,11 @@ function Sparkline({ path, compact = false }) {
 function Sidebar({ currentPage, onNavigate }) {
   return (
     <motion.aside className="sidebar" aria-label="Workspace navigation" initial={{ x: -22, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={spring}>
-      <a className="brand" href="/" aria-label="AiMarketingAgents home">
+      <a className="brand" href="/" aria-label="HiveAI home">
         <span className="brand-mark">
           <Lightning size={19} weight="fill" />
         </span>
-        AiMarketingAgents
+        HiveAI
       </a>
 
       <nav className="side-nav">
@@ -348,36 +348,35 @@ function AgentsPage({ roster, onSetAgentActive }) {
 
                 <div className="agent-entry-copy">
                   <div className="agent-entry-top">
-                    <div>
+                    <div className="agent-entry-name">
                       <h3>{agent.name}</h3>
-                      <p>{agent.role}</p>
+                      <span className={isActive ? "agent-state active" : "agent-state inactive"}>{isActive ? "Active" : "Inactive"}</span>
                     </div>
-                    <span className={isActive ? "agent-state active" : "agent-state inactive"}>{isActive ? "Active" : "Inactive"}</span>
+                    <div className="agent-entry-actions">
+                      <button
+                        type="button"
+                        className="agent-action stop"
+                        onClick={() => onSetAgentActive(agent.id, false)}
+                        disabled={!isActive}
+                        aria-disabled={!isActive}
+                      >
+                        <Square size={14} weight="fill" />
+                        Stop
+                      </button>
+                      <button
+                        type="button"
+                        className="agent-action start"
+                        onClick={() => onSetAgentActive(agent.id, true)}
+                        disabled={isActive}
+                        aria-disabled={isActive}
+                      >
+                        <Play size={14} weight="fill" />
+                        Start
+                      </button>
+                    </div>
                   </div>
+                  <p className="agent-role">{agent.role}</p>
                   <div className="agent-activity">{isActive ? agent.activeActivity : agent.idleActivity}</div>
-                </div>
-
-                <div className="agent-entry-actions">
-                  <button
-                    type="button"
-                    className="agent-action stop"
-                    onClick={() => onSetAgentActive(agent.id, false)}
-                    disabled={!isActive}
-                    aria-disabled={!isActive}
-                  >
-                    <Square size={14} weight="fill" />
-                    Stop
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-action start"
-                    onClick={() => onSetAgentActive(agent.id, true)}
-                    disabled={isActive}
-                    aria-disabled={isActive}
-                  >
-                    <Play size={14} weight="fill" />
-                    Start
-                  </button>
                 </div>
               </motion.article>
             );
@@ -395,7 +394,7 @@ function BriefsPage() {
         <div className="briefs-hero-copy">
           <span className="electric-kicker">Mission control</span>
           <h1>Agent Builder</h1>
-          <p>Build your marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
+          <p>Build your HiveAI marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
           <div className="hero-actions">
             <MagneticButton className="primary-button large" type="button">
               <Plus size={20} />
@@ -623,11 +622,11 @@ function Topbar() {
       <button className="mobile-menu" type="button" aria-label="Open navigation">
         <List size={23} />
       </button>
-      <a className="mobile-brand" href="/" aria-label="AiMarketingAgents home">
+      <a className="mobile-brand" href="/" aria-label="HiveAI home">
         <span className="brand-mark">
           <Lightning size={17} weight="fill" />
         </span>
-        AiMarketingAgents
+        HiveAI
       </a>
       <span className="date-select">Thursday, Jun 26</span>
       <div className="top-actions">
