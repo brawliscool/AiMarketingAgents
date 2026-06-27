@@ -1042,15 +1042,18 @@ img {
 
 .agents-list {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .agent-entry {
   display: grid;
   grid-template-columns: 8px 28px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   gap: 8px;
-  align-items: center;
-  padding: 5px 10px;
+  align-items: start;
+  min-height: 118px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
@@ -1062,7 +1065,7 @@ img {
 }
 
 .agent-entry:hover {
-  transform: translateX(4px);
+  transform: translateY(-3px);
   border-color: rgba(86, 182, 255, 0.34);
   background:
     radial-gradient(circle at 92% 10%, rgba(86, 182, 255, 0.12), transparent 24%),
@@ -1098,19 +1101,20 @@ img {
 }
 
 .agent-entry-copy {
+  display: grid;
+  gap: 9px;
   min-width: 0;
 }
 
 .agent-entry-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
 }
 
 .agent-entry-name {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
@@ -1119,6 +1123,7 @@ img {
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .agent-entry-top p {
@@ -1161,13 +1166,15 @@ img {
 .agent-entry-actions {
   display: flex;
   align-items: center;
-  margin-left: auto;
+  justify-content: stretch;
   gap: 3px;
 }
 
 .agent-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
   gap: 6px;
   min-height: 24px;
   padding: 0 8px;
@@ -2102,6 +2109,10 @@ img {
     min-height: auto;
   }
 
+  .agents-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-header,
   .calendar-footer {
     align-items: start;
@@ -2359,14 +2370,17 @@ img {
 
   .agent-entry {
     grid-template-columns: 7px 24px minmax(0, 1fr);
-    gap: 6px;
-    align-items: center;
-    padding: 4px 8px;
+    min-height: 104px;
+    gap: 7px;
+    padding: 10px;
+  }
+
+  .agents-list {
+    grid-template-columns: 1fr;
   }
 
   .agent-entry-actions {
-    margin-top: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .builder-form-grid,
