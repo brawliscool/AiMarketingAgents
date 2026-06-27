@@ -1000,17 +1000,17 @@ img {
 
 .agents-list {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .agent-entry {
   display: grid;
-  grid-template-columns: 10px 34px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 8px 28px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 7px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background:
     radial-gradient(circle at 92% 10%, rgba(86, 182, 255, 0.08), transparent 24%),
     rgba(255, 255, 255, 0.016);
@@ -1028,8 +1028,8 @@ img {
 }
 
 .agent-led {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   box-shadow: 0 0 18px transparent;
 }
@@ -1047,10 +1047,10 @@ img {
 .agent-entry-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   color: #fff;
-  border-radius: 9px;
+  border-radius: 7px;
   background: linear-gradient(145deg, #0b73ea, var(--electric-deep));
   animation: icon-float 4.4s ease-in-out infinite;
 }
@@ -1063,28 +1063,29 @@ img {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .agent-entry-top h3 {
   margin: 0;
-  font-size: 0.93rem;
+  font-size: 0.86rem;
   line-height: 1.05;
 }
 
 .agent-entry-top p {
-  margin: 1px 0 0;
+  display: none;
+  margin: 0;
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.1;
 }
 
 .agent-state {
-  padding: 3px 7px;
+  padding: 2px 6px;
   border: 1px solid var(--line);
   border-radius: 999px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   text-transform: uppercase;
 }
 
@@ -1111,18 +1112,18 @@ img {
 .agent-entry-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .agent-action {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 0 9px;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px;
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 220ms ease, background 220ms ease, opacity 220ms ease;
@@ -2304,10 +2305,10 @@ img {
   }
 
   .agent-entry {
-    grid-template-columns: 8px 30px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 7px 24px minmax(0, 1fr);
+    gap: 6px;
     align-items: center;
-    padding: 8px 10px;
+    padding: 4px 8px;
   }
 
   .agent-entry-actions {
