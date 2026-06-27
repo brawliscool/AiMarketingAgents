@@ -1,5 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#2f7d57"/>
-  <path d="M31 12l4.5 12.5L48 29l-12.5 4.5L31 46l-4.5-12.5L14 29l12.5-4.5L31 12z" fill="#ecfff5"/>
-  <path d="M45 9l2 5.5L52 17l-5 2.5-2 5.5-2-5.5-5-2.5 5-2.5L45 9z" fill="#ecfff5" opacity=".78"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="b" x1="18" y1="16" x2="110" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6bb6ff"/>
+      <stop offset=".55" stop-color="#1f87ff"/>
+      <stop offset="1" stop-color="#0a5fdc"/>
+    </linearGradient>
+    <linearGradient id="g" x1="26" y1="18" x2="96" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9ea1ad"/>
+      <stop offset="1" stop-color="#585d68"/>
+    </linearGradient>
+    <linearGradient id="c" x1="50" y1="44" x2="78" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bfc3cb"/>
+      <stop offset="1" stop-color="#666a76"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#06070c"/>
+  <rect x="32" y="22" width="19" height="56" rx="4" transform="rotate(56 41.5 50)" fill="url(#g)"/>
+  <rect x="77" y="22" width="19" height="56" rx="4" transform="rotate(-56 86.5 50)" fill="url(#b)"/>
+  <rect x="18" y="53" width="19" height="56" rx="4" fill="url(#g)"/>
+  <rect x="91" y="53" width="19" height="56" rx="4" fill="url(#b)"/>
+  <rect x="28" y="87" width="19" height="56" rx="4" transform="rotate(56 37.5 115)" fill="url(#g)"/>
+  <rect x="81" y="87" width="19" height="56" rx="4" transform="rotate(-56 90.5 115)" fill="url(#b)"/>
+  <path d="M64 46c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20Z" fill="url(#c)"/>
+  <path d="M59 63c-4-8-6-15-2-18 2-2 7-2 9 0 4 3 2 10-2 18" fill="#4c4f59" opacity=".95"/>
+  <rect x="57" y="84" width="14" height="13" rx="6" fill="url(#g)"/>
+  <rect x="53" y="97" width="22" height="10" rx="5" fill="url(#b)"/>
+  <path d="M61 27c-4 2-7 6-8 11" fill="none" stroke="#d5d8df" stroke-width="3.25" stroke-linecap="round"/>
+  <path d="M67 27c4 2 7 6 8 11" fill="none" stroke="#d5d8df" stroke-width="3.25" stroke-linecap="round"/>
+  <circle cx="58" cy="58" r="2.2" fill="#0e0f14"/>
+  <circle cx="70" cy="58" r="2.2" fill="#0e0f14"/>
 </svg>
