@@ -156,14 +156,19 @@ const calendarDays = [
 ];
 
 const briefBuilderFields = [
-  ["Business name", "Northstar Fitness Studio"],
-  ["Industry", "Local wellness and personal training"],
-  ["Target customer", "Busy professionals who want guided strength routines"],
-  ["Goal", "Book 30 intro consultations this month"],
-  ["Platforms", "TikTok, Facebook, Instagram Reels"],
-  ["Brand tone", "Direct, encouraging, practical"],
-  ["Posting schedule", "5 posts weekly, mornings and Sunday recap"],
-  ["Things to avoid", "Hard-sell language, unrealistic transformation claims"],
+  { id: "modelName", label: "Model name", required: true },
+  { id: "prompt", label: "Prompt", required: true, wide: true, multiline: true },
+  { id: "platforms", label: "Platforms", required: true },
+  { id: "postingSchedule", label: "Posting schedule" },
+  { id: "thingsToAvoid", label: "Things to avoid", wide: true, multiline: true },
+  { id: "modelApiKey", label: "AI model API key", required: true, wide: true, type: "password" },
+];
+
+const publishingAccessFields = [
+  { id: "socialPlatform", label: "Social platform", required: true },
+  { id: "socialApiKey", label: "Platform API key or access token", type: "password" },
+  { id: "socialLogin", label: "Platform login email or username" },
+  { id: "socialPassword", label: "Platform password", type: "password" },
 ];
 
 const liveAgentCards = [
@@ -480,6 +485,37 @@ function AgentsPage({ roster, onSetAgentActive }) {
 }
 
 function BriefsPage() {
+  const [briefValues, setBriefValues] = useState(() =>
+    Object.fromEntries(briefBuilderFields.map((field) => [field.id, ""])),
+  );
+  const [publishingAccessValues, setPublishingAccessValues] = useState(() =>
+    Object.fromEntries(publishingAccessFields.map((field) => [field.id, ""])),
+  );
+  const requiredFieldsComplete = briefBuilderFields
+    .filter((field) => field.required)
+    .every((field) => briefValues[field.id].trim().length > 0);
+  const socialPlatformSelected = publishingAccessValues.socialPlatform.trim().length > 0;
+  const hasSocialApiAccess = publishingAccessValues.socialApiKey.trim().length > 0;
+  const hasSocialLoginAccess =
+    publishingAccessValues.socialLogin.trim().length > 0 &&
+    publishingAccessValues.socialPassword.trim().length > 0;
+  const publishingAccessComplete = socialPlatformSelected && (hasSocialApiAccess || hasSocialLoginAccess);
+  const builderReady = requiredFieldsComplete && publishingAccessComplete;
+
+  const updateBriefField = (fieldId, value) => {
+    setBriefValues((currentValues) => ({
+      ...currentValues,
+      [fieldId]: value,
+    }));
+  };
+
+  const updatePublishingAccessField = (fieldId, value) => {
+    setPublishingAccessValues((currentValues) => ({
+      ...currentValues,
+      [fieldId]: value,
+    }));
+  };
+
   return (
     <div className="briefs-page">
       <motion.section className="briefs-hero panel" variants={itemVariants}>
@@ -515,21 +551,64 @@ function BriefsPage() {
             <span>Draft</span>
           </div>
           <div className="builder-form-grid">
-            {briefBuilderFields.map(([label, value], index) => (
+            {briefBuilderFields.map((field) => (
               <motion.label
-                className={index === 2 || index === 7 ? "builder-field wide" : "builder-field"}
-                key={label}
+                className={field.wide ? "builder-field wide" : "builder-field"}
+                key={field.id}
                 whileHover={{ y: -2, borderColor: "rgba(177, 108, 255, 0.34)" }}
               >
-                <span>{label}</span>
-                <strong>{value}</strong>
+                <span>{field.label}</span>
+                {field.multiline ? (
+                  <textarea
+                    aria-label={field.label}
+                    value={briefValues[field.id]}
+                    onChange={(event) => updateBriefField(field.id, event.target.value)}
+                    rows={2}
+                  />
+                ) : (
+                  <input
+                    aria-label={field.label}
+                    type={field.type || "text"}
+                    value={briefValues[field.id]}
+                    onChange={(event) => updateBriefField(field.id, event.target.value)}
+                    autoComplete={field.type === "password" ? "off" : undefined}
+                  />
+                )}
               </motion.label>
             ))}
           </div>
+          <div className="publishing-access-block">
+            <div className="builder-subtitle">
+              <strong>Publishing access</strong>
+              <span>Required before agents can post</span>
+            </div>
+            <div className="builder-form-grid access-grid">
+              {publishingAccessFields.map((field) => (
+                <motion.label
+                  className="builder-field"
+                  key={field.id}
+                  whileHover={{ y: -2, borderColor: "rgba(177, 108, 255, 0.34)" }}
+                >
+                  <span>{field.label}</span>
+                  <input
+                    aria-label={field.label}
+                    type={field.type || "text"}
+                    value={publishingAccessValues[field.id]}
+                    onChange={(event) => updatePublishingAccessField(field.id, event.target.value)}
+                    autoComplete={field.type === "password" ? "off" : undefined}
+                  />
+                </motion.label>
+              ))}
+            </div>
+          </div>
           <div className="builder-footer">
-            <div className="builder-check">
+            <div className={builderReady ? "builder-check complete" : "builder-check"}>
               <CheckCircle size={20} weight="fill" />
-              Brief ready for agent handoff
+              {builderReady
+                ? "Ready to hand off and post"
+                : publishingAccessComplete
+                  ? "Complete model fields to hand off"
+                  : "Add social API key or login to post"}
             </div>
             <MagneticButton className="secondary-button" type="button">
               <ShieldWarning size={18} />
