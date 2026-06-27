@@ -43,6 +43,7 @@ function LogoMark() {
   const blueId = `${uid}-blue`;
   const grayId = `${uid}-gray`;
   const coreId = `${uid}-core`;
+  const haloId = `${uid}-halo`;
   const shadowId = `${uid}-shadow`;
 
   return (
@@ -61,27 +62,33 @@ function LogoMark() {
           <stop offset="0" stopColor="#bfc3cb" />
           <stop offset="1" stopColor="#666a76" />
         </linearGradient>
-        <filter id={shadowId} x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#000000" floodOpacity=".45" />
+        <radialGradient id={haloId} cx="50%" cy="48%" r="48%">
+          <stop offset="0" stopColor="#56b6ff" stopOpacity="0.32" />
+          <stop offset="0.6" stopColor="#1b8cff" stopOpacity="0.14" />
+          <stop offset="1" stopColor="#1b8cff" stopOpacity="0" />
+        </radialGradient>
+        <filter id={shadowId} x="-28%" y="-28%" width="156%" height="156%">
+          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#000000" floodOpacity=".36" />
         </filter>
       </defs>
-      <rect x="16" y="16" width="96" height="96" rx="24" fill="#06070c" />
-      <g filter={`url(#${shadowId})`}>
+      <circle cx="64" cy="64" r="58" fill={`url(#${haloId})`} />
+      <circle cx="64" cy="64" r="42" fill="rgba(255,255,255,0.025)" stroke="rgba(139, 201, 255, 0.18)" strokeWidth="1.5" />
+      <g filter={`url(#${shadowId})`} transform="translate(5 4) scale(.92)">
         <rect x="32" y="22" width="19" height="56" rx="4" transform="rotate(56 41.5 50)" fill={`url(#${grayId})`} />
         <rect x="77" y="22" width="19" height="56" rx="4" transform="rotate(-56 86.5 50)" fill={`url(#${blueId})`} />
         <rect x="18" y="53" width="19" height="56" rx="4" transform="rotate(0 27.5 81)" fill={`url(#${grayId})`} />
         <rect x="91" y="53" width="19" height="56" rx="4" transform="rotate(0 100.5 81)" fill={`url(#${blueId})`} />
         <rect x="28" y="87" width="19" height="56" rx="4" transform="rotate(56 37.5 115)" fill={`url(#${grayId})`} />
         <rect x="81" y="87" width="19" height="56" rx="4" transform="rotate(-56 90.5 115)" fill={`url(#${blueId})`} />
+        <path d="M64 46c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20Z" fill={`url(#${coreId})`} />
+        <path d="M59 63c-4-8-6-15-2-18 2-2 7-2 9 0 4 3 2 10-2 18" fill="#4c4f59" opacity=".95" />
+        <rect x="57" y="84" width="14" height="13" rx="6" fill={`url(#${grayId})`} />
+        <rect x="53" y="97" width="22" height="10" rx="5" fill={`url(#${blueId})`} />
+        <path d="M61 27c-4 2-7 6-8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
+        <path d="M67 27c4 2 7 6 8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
+        <circle cx="58" cy="58" r="2.2" fill="#0e0f14" />
+        <circle cx="70" cy="58" r="2.2" fill="#0e0f14" />
       </g>
-      <path d="M64 46c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20Z" fill={`url(#${coreId})`} />
-      <path d="M59 63c-4-8-6-15-2-18 2-2 7-2 9 0 4 3 2 10-2 18" fill="#4c4f59" opacity=".95" />
-      <rect x="57" y="84" width="14" height="13" rx="6" fill={`url(#${grayId})`} />
-      <rect x="53" y="97" width="22" height="10" rx="5" fill={`url(#${blueId})`} />
-      <path d="M61 27c-4 2-7 6-8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
-      <path d="M67 27c4 2 7 6 8 11" fill="none" stroke="#d5d8df" strokeWidth="3.25" strokeLinecap="round" />
-      <circle cx="58" cy="58" r="2.2" fill="#0e0f14" />
-      <circle cx="70" cy="58" r="2.2" fill="#0e0f14" />
     </svg>
   );
 }
@@ -176,6 +183,45 @@ const memoryCards = [
   ["Current campaign goal", "Convert local leads into consult bookings", Target],
 ];
 
+const integrationAccounts = [
+  {
+    name: "Instagram Business",
+    description: "Publishing, comments, reels performance, and account insights.",
+    status: "Ready to connect",
+    icon: PaperPlaneTilt,
+  },
+  {
+    name: "Facebook Page",
+    description: "Page posts, paid-social handoff, audience signals, and inbox context.",
+    status: "Ready to connect",
+    icon: Megaphone,
+  },
+  {
+    name: "TikTok Business",
+    description: "Short-form publishing queue, trend capture, and video analytics.",
+    status: "Ready to connect",
+    icon: VideoCamera,
+  },
+  {
+    name: "Google Analytics",
+    description: "Website traffic, campaign attribution, and conversion reporting.",
+    status: "Ready to connect",
+    icon: ChartLineUp,
+  },
+  {
+    name: "Email platform",
+    description: "Lifecycle campaigns, nurture sequences, and subscriber segments.",
+    status: "Ready to connect",
+    icon: ClipboardText,
+  },
+  {
+    name: "Website tracker",
+    description: "Pixel events, form submissions, and landing-page conversion signals.",
+    status: "Setup needed",
+    icon: Target,
+  },
+];
+
 function MagneticButton({ className, children, ...props }) {
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
@@ -265,10 +311,10 @@ function Sidebar({ currentPage, onNavigate }) {
 
       <div className="sidebar-footer">
         <div className="profile-card">
-          <img src="https://i.pravatar.cc/80?img=12" alt="Alex Morgan" />
+          <div className="workspace-avatar" aria-hidden="true">HW</div>
           <div>
-            <strong>Alex Morgan</strong>
-            <span>Growth Lead</span>
+            <strong>HiveAI Workspace</strong>
+            <span>Business accounts</span>
           </div>
         </div>
         <div className="system-card">
@@ -659,6 +705,51 @@ function SettingsPage({ settings, onToggle, onSelect }) {
         </section>
       </div>
     </MotionPanel>
+  );
+}
+
+function IntegrationsPage() {
+  return (
+    <motion.div className="integrations-page" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
+      <MotionPanel className="panel integrations-hero">
+        <div>
+          <span className="section-kicker">Account hub</span>
+          <h1>Connect the business workspace</h1>
+          <p>Link the channels your agents need before publishing, reading inbox context, or reporting real campaign results.</p>
+        </div>
+        <div className="integration-summary">
+          <strong>0 / {integrationAccounts.length}</strong>
+          <span>accounts connected</span>
+        </div>
+      </MotionPanel>
+
+      <MotionPanel className="panel integrations-panel">
+        <div className="panel-title">
+          <h2>Accounts to integrate</h2>
+          <span>OAuth handoff ready</span>
+        </div>
+        <div className="integration-grid">
+          {integrationAccounts.map(({ name, description, status, icon: Icon }) => (
+            <article className="integration-card" key={name}>
+              <div className="integration-icon">
+                <Icon size={22} />
+              </div>
+              <div className="integration-copy">
+                <strong>{name}</strong>
+                <span>{description}</span>
+              </div>
+              <span className={status === "Setup needed" ? "integration-status warning" : "integration-status"}>
+                {status}
+              </span>
+              <MagneticButton className="secondary-button integration-action" type="button">
+                <PlugsConnected size={17} />
+                Connect
+              </MagneticButton>
+            </article>
+          ))}
+        </div>
+      </MotionPanel>
+    </motion.div>
   );
 }
 
@@ -1114,7 +1205,7 @@ function App() {
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <CalendarPanel />,
     Insights: <PageShell title="Insights" subtitle="A lightweight insights page." />,
-    Integrations: <PageShell title="Integrations" subtitle="A lightweight integrations page." />,
+    Integrations: <IntegrationsPage />,
     Settings: <SettingsPage settings={settings} onToggle={toggleSetting} onSelect={updateSetting} />,
   };
 
