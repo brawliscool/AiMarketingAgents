@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="title desc">
+  <title id="title">HiveAI dashboard preview</title>
+  <desc id="desc">A blue and gray marketing agent dashboard preview with analytics cards and publishing status.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1a33"/>
+      <stop offset="0.55" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#02060d"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7cc7ff"/>
+      <stop offset="1" stop-color="#1f87ff"/>
+    </linearGradient>
+    <linearGradient id="gray" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b6bbc7"/>
+      <stop offset="1" stop-color="#5f6674"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="960" height="600" fill="url(#bg)"/>
+  <circle cx="190" cy="90" r="150" fill="#1f87ff" opacity="0.18"/>
+  <circle cx="790" cy="520" r="210" fill="#56b6ff" opacity="0.10"/>
+  <g opacity="0.18" stroke="#56b6ff" stroke-width="1">
+    <path d="M0 110h960M0 220h960M0 330h960M0 440h960M0 550h960"/>
+    <path d="M120 0v600M240 0v600M360 0v600M480 0v600M600 0v600M720 0v600M840 0v600"/>
+  </g>
+  <rect x="56" y="48" width="848" height="504" rx="28" fill="#081121" stroke="#2c8fff" stroke-opacity="0.38"/>
+  <rect x="86" y="84" width="166" height="432" rx="20" fill="#0c172b" stroke="#566173" stroke-opacity="0.45"/>
+  <circle cx="124" cy="126" r="20" fill="url(#blue)" filter="url(#glow)"/>
+  <rect x="158" y="114" width="62" height="12" rx="6" fill="#d7dce6" opacity="0.9"/>
+  <rect x="158" y="134" width="42" height="9" rx="4.5" fill="#7b8597"/>
+  <g fill="#657085">
+    <rect x="112" y="198" width="104" height="12" rx="6"/>
+    <rect x="112" y="244" width="84" height="12" rx="6"/>
+    <rect x="112" y="290" width="112" height="12" rx="6"/>
+    <rect x="112" y="336" width="74" height="12" rx="6"/>
+    <rect x="112" y="382" width="94" height="12" rx="6"/>
+  </g>
+  <rect x="288" y="84" width="576" height="92" rx="22" fill="#0d1a30" stroke="#566173" stroke-opacity="0.45"/>
+  <rect x="324" y="112" width="220" height="18" rx="9" fill="#f2f6ff" opacity="0.93"/>
+  <rect x="324" y="142" width="128" height="12" rx="6" fill="#7b8597"/>
+  <rect x="700" y="112" width="124" height="36" rx="18" fill="url(#blue)"/>
+  <rect x="324" y="210" width="154" height="126" rx="22" fill="#0d1a30" stroke="#2c8fff" stroke-opacity="0.45"/>
+  <rect x="512" y="210" width="154" height="126" rx="22" fill="#0d1a30" stroke="#566173" stroke-opacity="0.45"/>
+  <rect x="700" y="210" width="154" height="126" rx="22" fill="#0d1a30" stroke="#2c8fff" stroke-opacity="0.38"/>
+  <g>
+    <rect x="348" y="236" width="58" height="12" rx="6" fill="#7b8597"/>
+    <rect x="348" y="264" width="82" height="28" rx="8" fill="url(#blue)"/>
+    <path d="M350 314c32-26 56 16 92-18" fill="none" stroke="#7cc7ff" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <g>
+    <rect x="536" y="236" width="66" height="12" rx="6" fill="#7b8597"/>
+    <rect x="536" y="264" width="74" height="28" rx="8" fill="url(#gray)"/>
+    <rect x="536" y="306" width="92" height="10" rx="5" fill="#5f6674"/>
+  </g>
+  <g>
+    <rect x="724" y="236" width="78" height="12" rx="6" fill="#7b8597"/>
+    <circle cx="754" cy="284" r="26" fill="#1f87ff" opacity="0.28"/>
+    <circle cx="754" cy="284" r="14" fill="#7cc7ff"/>
+    <rect x="790" y="276" width="42" height="14" rx="7" fill="#8e99ac"/>
+  </g>
+  <rect x="288" y="370" width="360" height="146" rx="24" fill="#0d1a30" stroke="#566173" stroke-opacity="0.45"/>
+  <path d="M326 470c35-82 74-28 108-76 38 86 78 36 120 62 28 17 44-21 62-44" fill="none" stroke="#56b6ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="700" y="370" width="154" height="146" rx="24" fill="#0d1a30" stroke="#2c8fff" stroke-opacity="0.38"/>
+  <rect x="730" y="400" width="94" height="14" rx="7" fill="#d7dce6" opacity="0.88"/>
+  <rect x="730" y="432" width="72" height="10" rx="5" fill="#7b8597"/>
+  <rect x="730" y="462" width="96" height="28" rx="14" fill="url(#blue)"/>
+</svg>
