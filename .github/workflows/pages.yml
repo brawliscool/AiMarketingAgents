@@ -32,6 +32,8 @@ jobs:
         run: npm ci
       - name: Build site
         run: npm run build
+      - name: Wire homepage actions
+        run: node scripts/inject-homepage-actions.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
