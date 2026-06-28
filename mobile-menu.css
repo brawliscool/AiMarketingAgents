@@ -9,7 +9,7 @@
 
   .mobile-menu {
     position: relative;
-    z-index: 1101;
+    z-index: 2147483647;
     border-radius: 10px;
     cursor: pointer;
   }
@@ -25,35 +25,53 @@
   }
 
   body.mobile-nav-open::after {
-    position: fixed;
-    inset: 0;
-    z-index: 999;
-    content: "";
-    background: rgba(4, 5, 10, 0.62);
-    backdrop-filter: blur(10px);
+    display: none !important;
+    content: none !important;
   }
 
   body.mobile-nav-open .sidebar {
-    position: fixed;
-    inset: 10px auto 10px 10px;
-    z-index: 1100;
+    position: fixed !important;
+    top: max(10px, env(safe-area-inset-top));
+    left: 10px;
+    right: auto;
+    bottom: 10px;
+    z-index: 2147483646 !important;
     display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     width: min(86vw, 326px);
     min-height: auto;
     max-height: calc(100dvh - 20px);
     overflow-y: auto;
     border: 1px solid rgba(86, 182, 255, 0.24);
     border-radius: 18px;
+    background: linear-gradient(180deg, rgba(18, 15, 25, 0.99), rgba(11, 10, 15, 0.99));
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
+    transform: translateX(0) scale(1) !important;
+    filter: none !important;
+    backdrop-filter: none !important;
     animation: mobile-nav-slide 180ms ease-out both;
+  }
+
+  body.mobile-nav-open .sidebar::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    background: rgba(4, 5, 10, 0.58);
   }
 
   body.mobile-nav-open .sidebar .brand {
     display: flex;
   }
 
+  body.mobile-nav-open .side-nav {
+    display: grid;
+  }
+
   body.mobile-nav-open .side-link {
     min-height: 48px;
+    pointer-events: auto;
   }
 }
 
