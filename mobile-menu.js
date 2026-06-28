@@ -1,5 +1,6 @@
 (() => {
   const MOBILE_NAV_CLASS = "mobile-nav-open";
+  const CLOSE_BUTTON_CLASS = "mobile-nav-close";
 
   const pageTargets = new Map([
     ["build new brief", "Briefs"],
@@ -15,7 +16,22 @@
     return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
+  function ensureCloseButton() {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar || sidebar.querySelector(`.${CLOSE_BUTTON_CLASS}`)) {
+      return;
+    }
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = CLOSE_BUTTON_CLASS;
+    closeButton.setAttribute("aria-label", "Close navigation");
+    closeButton.innerHTML = `<span>Close menu</span><strong aria-hidden="true">×</strong>`;
+    sidebar.insertBefore(closeButton, sidebar.firstChild);
+  }
+
   function setMobileNav(open) {
+    ensureCloseButton();
     document.body.classList.toggle(MOBILE_NAV_CLASS, open);
     const menuButton = document.querySelector(".mobile-menu");
     if (menuButton) {
@@ -49,6 +65,13 @@
   }
 
   document.addEventListener("click", (event) => {
+    const closeButton = event.target.closest(`.${CLOSE_BUTTON_CLASS}`);
+    if (closeButton) {
+      event.preventDefault();
+      closeMobileNav();
+      return;
+    }
+
     const menuButton = event.target.closest(".mobile-menu");
     if (menuButton) {
       event.preventDefault();
@@ -66,7 +89,7 @@
     }
 
     const clickable = event.target.closest("button, a");
-    if (!clickable || clickable.disabled || clickable.matches(".side-link")) {
+    if (!clickable || clickable.disabled || clickable.matches(".side-link") || clickable.matches(`.${CLOSE_BUTTON_CLASS}`)) {
       return;
     }
 
@@ -100,5 +123,7 @@
     if (sidebar) {
       sidebar.id = "mobile-navigation";
     }
+
+    ensureCloseButton();
   });
 })();
