@@ -1,0 +1,104 @@
+(() => {
+  const MOBILE_NAV_CLASS = "mobile-nav-open";
+
+  const pageTargets = new Map([
+    ["build new brief", "Briefs"],
+    ["create agent brief", "Briefs"],
+    ["view live agents", "Agents"],
+    ["open calendar", "Calendar"],
+    ["run agents", "Briefs"],
+    ["open brief", "Briefs"],
+    ["view all launches", "Campaigns"],
+  ]);
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function setMobileNav(open) {
+    document.body.classList.toggle(MOBILE_NAV_CLASS, open);
+    const menuButton = document.querySelector(".mobile-menu");
+    if (menuButton) {
+      menuButton.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
+  function toggleMobileNav() {
+    setMobileNav(!document.body.classList.contains(MOBILE_NAV_CLASS));
+  }
+
+  function closeMobileNav() {
+    setMobileNav(false);
+  }
+
+  function navigateWithSidebar(label) {
+    const target = normalizeText(label);
+    const matchingLink = Array.from(document.querySelectorAll(".side-link")).find(
+      (link) => normalizeText(link.textContent) === target,
+    );
+
+    if (matchingLink) {
+      matchingLink.click();
+      closeMobileNav();
+      return true;
+    }
+
+    window.location.hash = target.replace(/\s+/g, "-");
+    closeMobileNav();
+    return false;
+  }
+
+  document.addEventListener("click", (event) => {
+    const menuButton = event.target.closest(".mobile-menu");
+    if (menuButton) {
+      event.preventDefault();
+      toggleMobileNav();
+      return;
+    }
+
+    if (document.body.classList.contains(MOBILE_NAV_CLASS) && !event.target.closest(".sidebar") && !event.target.closest(".mobile-menu")) {
+      closeMobileNav();
+    }
+
+    if (event.target.closest(".side-link")) {
+      closeMobileNav();
+      return;
+    }
+
+    const clickable = event.target.closest("button, a");
+    if (!clickable || clickable.disabled || clickable.matches(".side-link")) {
+      return;
+    }
+
+    const targetPage = pageTargets.get(normalizeText(clickable.textContent));
+    if (targetPage) {
+      event.preventDefault();
+      navigateWithSidebar(targetPage);
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMobileNav();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 1180) {
+      closeMobileNav();
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const menuButton = document.querySelector(".mobile-menu");
+    if (menuButton) {
+      menuButton.setAttribute("aria-expanded", "false");
+      menuButton.setAttribute("aria-controls", "mobile-navigation");
+    }
+
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) {
+      sidebar.id = "mobile-navigation";
+    }
+  });
+})();
