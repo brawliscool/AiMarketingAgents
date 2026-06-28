@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { localSocialStore } from "./store.js";
 import { normalizePlatform, platformProfiles, supportedPlatforms } from "./types.js";
 
@@ -14,6 +14,19 @@ function credentialsFor(platform) {
 function redactToken(token) {
   if (!token) return null;
   return createHash("sha256").update(token).digest("hex").slice(0, 12);
+}
+
+function base64Url(buffer) {
+  return Buffer.from(buffer).toString("base64url");
+}
+
+function pkceChallenge(verifier) {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+function cleanProviderValue(value, maxLength = 250) {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLength);
 }
 
 function publicIntegration(platform, raw) {
@@ -37,7 +50,7 @@ function publicIntegration(platform, raw) {
   };
 }
 
-function authUrlFor(platform, state) {
+function authUrlFor(platform, state, codeVerifier) {
   const profile = platformProfiles[platform];
   const creds = credentialsFor(platform);
   if (!creds.clientId || !creds.clientSecret || !creds.redirectUri) {
@@ -55,19 +68,28 @@ function authUrlFor(platform, state) {
   url.searchParams.set("redirect_uri", creds.redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
-  url.searchParams.set("scope", profile.scopes.join(platform === "reddit" ? " " : " "));
+  url.searchParams.set("scope", profile.scopes.join(" "));
   if (platform === "reddit") url.searchParams.set("duration", "permanent");
-  if (platform === "x") url.searchParams.set("code_challenge", "challenge");
-  if (platform === "x") url.searchParams.set("code_challenge_method", "plain");
+  if (platform === "x") {
+    url.searchParams.set("code_challenge", pkceChallenge(codeVerifier));
+    url.searchParams.set("code_challenge_method", "S256");
+  }
   return url.toString();
 }
 
-async function exchangeCode(platform, code) {
+async function exchangeCode(platform, code, stateRecord) {
   const profile = platformProfiles[platform];
   const creds = credentialsFor(platform);
+  const safeCode = cleanProviderValue(code, 2_000);
+  if (!safeCode) {
+    const error = new Error("Missing authorization code");
+    error.status = 400;
+    throw error;
+  }
+
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
-  body.set("code", code);
+  body.set("code", safeCode);
   body.set("redirect_uri", creds.redirectUri);
 
   const headers = { "Content-Type": "application/x-www-form-urlencoded" };
@@ -76,7 +98,9 @@ async function exchangeCode(platform, code) {
   } else {
     body.set(platform === "tiktok" ? "client_key" : "client_id", creds.clientId);
     body.set("client_secret", creds.clientSecret);
-    if (platform === "x") body.set("code_verifier", "challenge");
+    if (platform === "x") {
+      body.set("code_verifier", stateRecord.codeVerifier || "");
+    }
   }
 
   const response = await fetch(profile.tokenUrl, { method: "POST", headers, body });
@@ -99,33 +123,43 @@ export const socialService = {
     return publicIntegration(platform, localSocialStore.get(platform));
   },
   connect(platform) {
-    const state = randomBytes(32).toString("hex");
-    localSocialStore.saveState(state, { platform });
-    return { authUrl: authUrlFor(platform, state), state };
+    const state = base64Url(randomBytes(32));
+    const codeVerifier = platform === "x" ? base64Url(randomBytes(32)) : null;
+    localSocialStore.saveState(state, { platform, codeVerifier });
+    return { authUrl: authUrlFor(platform, state, codeVerifier), state };
   },
   async callback(platform, { code, state }) {
-    if (!code) {
-      const error = new Error("Missing authorization code");
+    const safeState = cleanProviderValue(state, 128);
+    if (!safeState) {
+      const error = new Error("Missing OAuth state");
       error.status = 400;
       throw error;
     }
-    const stateRecord = localSocialStore.consumeState(state);
+
+    const stateRecord = localSocialStore.consumeState(safeState);
     if (!stateRecord || stateRecord.platform !== platform || Date.now() - stateRecord.createdAt > 10 * 60 * 1000) {
       const error = new Error("Invalid or expired OAuth state");
       error.status = 400;
       throw error;
     }
 
-    const token = await exchangeCode(platform, code);
+    const token = await exchangeCode(platform, code, stateRecord);
+    const accessToken = cleanProviderValue(token.access_token || token.data?.access_token, 4_096);
+    if (!accessToken) {
+      const error = new Error("OAuth provider did not return an access token");
+      error.status = 502;
+      throw error;
+    }
+
     const now = Date.now();
-    const expiresIn = Number(token.expires_in || token.data?.expires_in || 3600);
+    const expiresIn = Math.max(60, Math.min(Number(token.expires_in || token.data?.expires_in || 3600), 60 * 60 * 24 * 90));
     return localSocialStore.save(platform, {
-      accessToken: token.access_token || token.data?.access_token,
-      refreshToken: token.refresh_token || token.data?.refresh_token || null,
+      accessToken,
+      refreshToken: cleanProviderValue(token.refresh_token || token.data?.refresh_token, 4_096) || null,
       expiresAt: new Date(now + expiresIn * 1000).toISOString(),
-      scopes: token.scope ? String(token.scope).split(/[,\s]+/).filter(Boolean) : platformProfiles[platform].scopes,
-      username: token.username || token.user_name || token.data?.open_id || `${platform}_account`,
-      tokenFingerprint: redactToken(token.access_token || token.data?.access_token),
+      scopes: token.scope ? String(token.scope).split(/[,\s]+/).filter(Boolean).slice(0, 50) : platformProfiles[platform].scopes,
+      username: cleanProviderValue(token.username || token.user_name || token.data?.open_id || `${platform}_account`, 160),
+      tokenFingerprint: redactToken(accessToken),
       lastSyncAt: new Date().toISOString(),
       analytics: { reach: 0, queued: 0, errors: 0 },
     });
@@ -161,7 +195,7 @@ export const socialService = {
     return {
       success: true,
       platform,
-      externalId: `${platform}_${crypto.randomUUID()}`,
+      externalId: `${platform}_${randomUUID()}`,
       status: payload.scheduledAt ? "scheduled" : "queued",
       errors: [],
     };
