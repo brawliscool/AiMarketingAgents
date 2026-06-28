@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { extname, join, resolve } from "node:path";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { extname, resolve, sep } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { withSupabase } from "@supabase/server";
 import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
@@ -8,6 +8,13 @@ import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 const root = process.cwd();
 const distDir = resolve(root, "dist");
 const envPath = resolve(root, ".env.local");
+const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || "127.0.0.1";
+const MAX_JSON_BODY_BYTES = 128_000;
+const MAX_PUBLISH_BODY_BYTES = 32_000;
+const API_WINDOW_MS = 60_000;
+const API_MAX_REQUESTS = 90;
+const AGENT_MAX_REQUESTS = 12;
 
 function loadEnvFile() {
   if (!existsSync(envPath)) {
@@ -20,7 +27,9 @@ function loadEnvFile() {
     if (!trimmed || trimmed.startsWith("#")) return acc;
     const index = trimmed.indexOf("=");
     if (index === -1) return acc;
-    acc[trimmed.slice(0, index)] = trimmed.slice(index + 1);
+    const key = trimmed.slice(0, index).trim();
+    const value = trimmed.slice(index + 1).trim().replace(/^[']|[']$/g, "").replace(/^["]|["]$/g, "");
+    if (/^[A-Z0-9_]+$/i.test(key)) acc[key] = value;
     return acc;
   }, {});
 }
@@ -40,10 +49,25 @@ if (!process.env.SUPABASE_PUBLISHABLE_KEY && process.env.VITE_SUPABASE_PUBLISHAB
   process.env.SUPABASE_PUBLISHABLE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 }
 
-const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
-const supabaseSecretKey = env.SUPABASE_SECRET_KEY;
-const openAiCompatibleBaseUrl = process.env.OPENAI_COMPATIBLE_BASE_URL || env.OPENAI_COMPATIBLE_BASE_URL || "https://api.openai.com/v1";
-const metaGraphApiBaseUrl = process.env.META_GRAPH_API_BASE_URL || env.META_GRAPH_API_BASE_URL || "https://graph.facebook.com/v25.0";
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
+const openAiCompatibleBaseUrl = normalizeTrustedBaseUrl(
+  process.env.OPENAI_COMPATIBLE_BASE_URL || "https://api.openai.com/v1",
+  "https://api.openai.com/v1",
+);
+const metaGraphApiBaseUrl = normalizeTrustedBaseUrl(
+  process.env.META_GRAPH_API_BASE_URL || "https://graph.facebook.com/v25.0",
+  "https://graph.facebook.com/v25.0",
+);
+
+const allowedOrigins = new Set([
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+  ...(process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -56,49 +80,159 @@ const mimeTypes = {
   ".webp": "image/webp",
 };
 
-function setCorsHeaders(res) {
-  res.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:5173");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+const rateBuckets = new Map();
+
+function normalizeTrustedBaseUrl(value, fallback) {
+  try {
+    const parsed = new URL(value);
+    const isLocal = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+    if (parsed.protocol !== "https:" && !(isLocal && parsed.protocol === "http:")) return fallback;
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return fallback;
+  }
 }
 
-function sendJson(res, status, payload) {
-  setCorsHeaders(res);
+function setSecurityHeaders(res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https://i.pravatar.cc",
+      "connect-src 'self' http://127.0.0.1:8787 http://localhost:8787",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join("; "),
+  );
+}
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Max-Age", "600");
+}
+
+function sendJson(req, res, status, payload) {
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
   res.writeHead(status, {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
   res.end(JSON.stringify(payload));
 }
 
-function readJsonBody(req) {
+function sendMethodNotAllowed(req, res, allowed) {
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
+  res.writeHead(405, {
+    "Content-Type": "application/json; charset=utf-8",
+    Allow: allowed.join(", "),
+    "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify({ error: "Method not allowed" }));
+}
+
+function clientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.socket.remoteAddress || "unknown";
+}
+
+function checkRateLimit(req, scope, limit) {
+  const key = `${scope}:${clientIp(req)}`;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key) || { resetAt: now + API_WINDOW_MS, count: 0 };
+  if (bucket.resetAt <= now) {
+    bucket.resetAt = now + API_WINDOW_MS;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  rateBuckets.set(key, bucket);
+  return bucket.count <= limit;
+}
+
+function readRawBody(req, limit = MAX_JSON_BODY_BYTES) {
   return new Promise((resolveBody, rejectBody) => {
-    let rawBody = "";
+    const chunks = [];
+    let received = 0;
+
     req.on("data", (chunk) => {
-      rawBody += chunk;
-      if (rawBody.length > 1_000_000) {
-        req.destroy(new Error("Request body too large"));
-      }
-    });
-    req.on("error", rejectBody);
-    req.on("end", () => {
-      if (!rawBody.trim()) {
-        resolveBody({});
+      received += chunk.length;
+      if (received > limit) {
+        rejectBody(new Error("Request body too large"));
+        req.destroy();
         return;
       }
-
-      try {
-        resolveBody(JSON.parse(rawBody));
-      } catch {
-        rejectBody(new Error("Invalid JSON body"));
-      }
+      chunks.push(chunk);
     });
+    req.on("error", rejectBody);
+    req.on("end", () => resolveBody(Buffer.concat(chunks).toString("utf8")));
   });
 }
 
-function requiredString(body, key) {
-  const value = body?.[key];
-  return typeof value === "string" ? value.trim() : "";
+async function readJsonBody(req, limit = MAX_JSON_BODY_BYTES) {
+  const contentType = String(req.headers["content-type"] || "");
+  if (contentType && !contentType.includes("application/json")) {
+    throw new Error("Content-Type must be application/json");
+  }
+
+  const rawBody = await readRawBody(req, limit);
+  if (!rawBody.trim()) return {};
+
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Invalid JSON body");
+    }
+    return parsed;
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
+}
+
+function cleanText(value, maxLength) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function requiredString(body, key, maxLength = 500) {
+  return cleanText(body?.[key], maxLength);
+}
+
+function boundedStringList(value, maxItems, maxItemLength) {
+  const source = Array.isArray(value) ? value : cleanText(value, maxItems * maxItemLength).split(/\s+/);
+  return source
+    .map((item) => cleanText(String(item), maxItemLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function isSafeAccountId(value) {
+  return /^[\w.@:-]{1,128}$/.test(value);
+}
+
+function isSafeModelName(value) {
+  return /^[a-zA-Z0-9._:/-]{1,96}$/.test(value);
 }
 
 function credentialFingerprint(value) {
@@ -107,66 +241,83 @@ function credentialFingerprint(value) {
 }
 
 function validateAgentRunPayload(body) {
-  const modelName = requiredString(body, "modelName");
-  const prompt = requiredString(body, "prompt");
-  const platforms = requiredString(body, "platforms");
-  const modelApiKey = requiredString(body, "modelApiKey");
-  const socialPlatform = requiredString(body, "socialPlatform");
-  const socialAccountId = requiredString(body, "socialAccountId");
-  const socialApiKey = requiredString(body, "socialApiKey");
-  const socialLogin = requiredString(body, "socialLogin");
-  const socialPassword = requiredString(body, "socialPassword");
+  const modelName = requiredString(body, "modelName", 96);
+  const prompt = requiredString(body, "prompt", 8_000);
+  const platforms = requiredString(body, "platforms", 300);
+  const modelApiKey = requiredString(body, "modelApiKey", 4_096);
+  const socialPlatform = requiredString(body, "socialPlatform", 40);
+  const socialAccountId = requiredString(body, "socialAccountId", 128);
+  const socialApiKey = requiredString(body, "socialApiKey", 4_096);
   const publishLive = Boolean(body?.publishLive);
 
   const missing = [];
+  const invalid = [];
   if (!modelName) missing.push("modelName");
   if (!prompt) missing.push("prompt");
   if (!platforms) missing.push("platforms");
   if (!modelApiKey) missing.push("modelApiKey");
-  if (!socialPlatform) missing.push("socialPlatform");
-  if (!socialAccountId) missing.push("socialAccountId");
-  if (!socialApiKey && !(socialLogin && socialPassword)) {
-    missing.push("socialApiKey or socialLogin+socialPassword");
-  }
+  if (modelName && !isSafeModelName(modelName)) invalid.push("modelName");
+  if (publishLive && !socialPlatform) missing.push("socialPlatform");
+  if (publishLive && !socialAccountId) missing.push("socialAccountId");
+  if (publishLive && !socialApiKey) missing.push("socialApiKey");
+  if (socialAccountId && !isSafeAccountId(socialAccountId)) invalid.push("socialAccountId");
 
   return {
     missing,
+    invalid,
     values: {
       modelName,
       prompt,
       platforms,
-      postingSchedule: requiredString(body, "postingSchedule"),
-      thingsToAvoid: requiredString(body, "thingsToAvoid"),
+      postingSchedule: requiredString(body, "postingSchedule", 500),
+      thingsToAvoid: requiredString(body, "thingsToAvoid", 1_500),
       modelApiKey,
       socialPlatform,
       socialAccountId,
       socialApiKey,
-      socialLogin,
-      socialPassword,
       publishLive,
     },
   };
 }
 
 function normalizePublishPayload(body) {
+  const mediaUrls = boundedStringList(body?.mediaUrls, 8, 500).filter((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  });
+
   return {
-    text: requiredString(body, "text"),
-    title: requiredString(body, "title"),
-    hashtags: Array.isArray(body?.hashtags)
-      ? body.hashtags.map(String).filter(Boolean)
-      : requiredString(body, "hashtags").split(/\s+/).filter(Boolean),
-    mediaUrls: Array.isArray(body?.mediaUrls) ? body.mediaUrls.map(String).filter(Boolean) : [],
-    videoUrl: requiredString(body, "videoUrl"),
-    imageUrl: requiredString(body, "imageUrl"),
-    subreddit: requiredString(body, "subreddit"),
-    scheduledAt: requiredString(body, "scheduledAt"),
-    campaignId: requiredString(body, "campaignId"),
-    agentId: requiredString(body, "agentId"),
+    text: requiredString(body, "text", 5_000),
+    title: requiredString(body, "title", 280),
+    hashtags: boundedStringList(body?.hashtags, 25, 64),
+    mediaUrls,
+    videoUrl: requiredString(body, "videoUrl", 500),
+    imageUrl: requiredString(body, "imageUrl", 500),
+    subreddit: requiredString(body, "subreddit", 80).replace(/^r\//i, ""),
+    scheduledAt: requiredString(body, "scheduledAt", 80),
+    campaignId: requiredString(body, "campaignId", 120),
+    agentId: requiredString(body, "agentId", 120),
   };
 }
 
+async function fetchJsonWithTimeout(url, options, timeoutMs = 20_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    return { response, data };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function generateAgentDraft(values) {
-  const response = await fetch(`${openAiCompatibleBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const { response, data } = await fetchJsonWithTimeout(`${openAiCompatibleBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${values.modelApiKey}`,
@@ -178,7 +329,7 @@ async function generateAgentDraft(values) {
         {
           role: "system",
           content:
-            "You are a marketing agent. Return concise, publish-ready social content and a short execution note.",
+            "You are a marketing agent. Return concise, publish-ready social content and a short execution note. Never include secrets, passwords, API keys, or private credentials in the output.",
         },
         {
           role: "user",
@@ -196,22 +347,18 @@ async function generateAgentDraft(values) {
     }),
   });
 
-  const data = await response.json().catch(() => ({}));
-
   if (!response.ok) {
     return {
       ok: false,
       status: response.status,
-      error: response.status === 401
-        ? "Model provider rejected the API key."
-        : data?.error?.type || data?.error?.code || data?.message || "Model provider request failed",
+      error: response.status === 401 ? "Model provider rejected the API key." : "Model provider request failed.",
     };
   }
 
   return {
     ok: true,
-    content: data?.choices?.[0]?.message?.content || "",
-    model: data?.model || values.modelName,
+    content: cleanText(data?.choices?.[0]?.message?.content || "", 10_000),
+    model: cleanText(data?.model || values.modelName, 120),
     usage: data?.usage || null,
   };
 }
@@ -221,34 +368,33 @@ function normalizePlatform(value) {
 }
 
 async function publishToFacebookPage(values, draftContent) {
-  const endpoint = `${metaGraphApiBaseUrl.replace(/\/$/, "")}/${encodeURIComponent(values.socialAccountId)}/feed`;
+  const endpoint = `${metaGraphApiBaseUrl}/${encodeURIComponent(values.socialAccountId)}/feed`;
   const body = new URLSearchParams({
     access_token: values.socialApiKey,
     message: draftContent,
   });
 
-  const response = await fetch(endpoint, {
+  const { response, data } = await fetchJsonWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body,
   });
-  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     return {
       ok: false,
       status: "publish_failed",
       providerStatus: response.status,
-      error: data?.error?.message || data?.error?.type || "Facebook Page publish failed",
+      error: data?.error?.type || "Facebook Page publish failed",
     };
   }
 
   return {
     ok: true,
     status: "published",
-    providerPostId: data?.id || null,
+    providerPostId: cleanText(data?.id || "", 160) || null,
   };
 }
 
@@ -260,7 +406,7 @@ async function publishDraft(values, draftContent) {
       ok: true,
       status: "draft_ready",
       liveAttempted: false,
-      note: "Live publishing is off. The agent generated content and verified publishing access only.",
+      note: "Live publishing is off. The agent generated content only.",
     };
   }
 
@@ -269,7 +415,7 @@ async function publishDraft(values, draftContent) {
       ok: false,
       status: "oauth_or_api_token_required",
       liveAttempted: false,
-      note: "Live posting requires an official platform API token. Username and password are accepted for gating, but not used for automated login.",
+      note: "Live posting requires an official platform API token.",
     };
   }
 
@@ -286,15 +432,13 @@ async function publishDraft(values, draftContent) {
 }
 
 function buildPublishingResult(values, publishResult) {
-  const accessMethod = values.socialApiKey ? "api_token" : "login_credentials";
-
   return {
-    platform: values.socialPlatform,
-    accountId: values.socialAccountId,
+    platform: values.socialPlatform || "draft_only",
+    accountId: values.socialAccountId || null,
     requestedPlatforms: values.platforms,
-    accessMethod,
+    accessMethod: values.socialApiKey ? "api_token" : "none",
     liveRequested: values.publishLive,
-    credentialFingerprint: credentialFingerprint(values.socialApiKey || `${values.socialLogin}:${values.socialPassword}`),
+    credentialFingerprint: values.socialApiKey ? credentialFingerprint(values.socialApiKey) : null,
     canPublishAutomatically: Boolean(values.socialApiKey && values.socialAccountId),
     status: publishResult.status,
     providerStatus: publishResult.providerStatus,
@@ -305,27 +449,31 @@ function buildPublishingResult(values, publishResult) {
 
 async function handleAgentRun(req, res) {
   if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Method not allowed" });
+    sendMethodNotAllowed(req, res, ["POST"]);
+    return;
+  }
+  if (!checkRateLimit(req, "agents", AGENT_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many agent requests. Try again shortly." });
     return;
   }
 
   let body;
   try {
-    body = await readJsonBody(req);
+    body = await readJsonBody(req, MAX_JSON_BODY_BYTES);
   } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid request body" });
+    sendJson(req, res, 400, { error: error instanceof Error ? error.message : "Invalid request body" });
     return;
   }
 
-  const { missing, values } = validateAgentRunPayload(body);
-  if (missing.length > 0) {
-    sendJson(res, 400, { error: "Missing required fields", missing });
+  const { missing, invalid, values } = validateAgentRunPayload(body);
+  if (missing.length > 0 || invalid.length > 0) {
+    sendJson(req, res, 400, { error: "Invalid request", missing, invalid });
     return;
   }
 
   const draft = await generateAgentDraft(values);
   if (!draft.ok) {
-    sendJson(res, 502, {
+    sendJson(req, res, 502, {
       error: draft.error,
       providerStatus: draft.status,
       runId: randomUUID(),
@@ -335,7 +483,7 @@ async function handleAgentRun(req, res) {
 
   const publishResult = await publishDraft(values, draft.content);
 
-  sendJson(res, 200, {
+  sendJson(req, res, 200, {
     ok: publishResult.ok,
     runId: randomUUID(),
     model: draft.model,
@@ -345,22 +493,26 @@ async function handleAgentRun(req, res) {
     secrets: {
       modelApiKey: "received_redacted",
       socialApiKey: values.socialApiKey ? "received_redacted" : "not_provided",
-      socialLogin: values.socialLogin ? "received_redacted" : "not_provided",
-      socialPassword: values.socialPassword ? "received_redacted" : "not_provided",
     },
   });
 }
 
 async function handleIntegrationRoutes(req, res, url) {
+  if (!checkRateLimit(req, "integrations", API_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many integration requests. Try again shortly." });
+    return true;
+  }
+
   if (url.pathname === "/api/integrations/status") {
-    if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
-    return sendJson(res, 200, {
+    if (req.method !== "GET") return sendMethodNotAllowed(req, res, ["GET"]);
+    sendJson(req, res, 200, {
       integrations: socialService.getAllStatus(),
       scheduler: {
         modes: ["immediate", "scheduled", "recurring", "queue", "retry"],
         pendingQueue: 0,
       },
     });
+    return true;
   }
 
   const match = url.pathname.match(/^\/api\/integrations\/([^/]+)\/(auth|callback|disconnect|refresh|publish)$/);
@@ -370,48 +522,54 @@ async function handleIntegrationRoutes(req, res, url) {
   try {
     platform = parsePlatformOrThrow(match[1]);
   } catch (error) {
-    return sendJson(res, error.status || 400, { error: error.message });
+    sendJson(req, res, error.status || 400, { error: error.message });
+    return true;
   }
 
   const action = match[2];
   try {
     if (action === "auth") {
-      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
-      const result = socialService.connect(platform);
-      return sendJson(res, 200, result);
+      if (req.method !== "GET") return sendMethodNotAllowed(req, res, ["GET"]);
+      sendJson(req, res, 200, socialService.connect(platform));
+      return true;
     }
 
     if (action === "callback") {
-      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
+      if (req.method !== "GET") return sendMethodNotAllowed(req, res, ["GET"]);
       const integration = await socialService.callback(platform, {
         code: url.searchParams.get("code"),
         state: url.searchParams.get("state"),
       });
-      return sendJson(res, 200, { ok: true, integration: socialService.getStatus(platform), savedAt: integration.updatedAt });
+      sendJson(req, res, 200, { ok: true, integration: socialService.getStatus(platform), savedAt: integration.updatedAt });
+      return true;
     }
 
     if (action === "disconnect") {
-      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
-      return sendJson(res, 200, socialService.disconnect(platform));
+      if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
+      sendJson(req, res, 200, socialService.disconnect(platform));
+      return true;
     }
 
     if (action === "refresh") {
-      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+      if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
       socialService.refresh(platform);
-      return sendJson(res, 200, { ok: true, integration: socialService.getStatus(platform) });
+      sendJson(req, res, 200, { ok: true, integration: socialService.getStatus(platform) });
+      return true;
     }
 
     if (action === "publish") {
-      if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
-      const body = await readJsonBody(req);
+      if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
+      const body = await readJsonBody(req, MAX_PUBLISH_BODY_BYTES);
       const result = socialService.publish(platform, normalizePublishPayload(body));
-      return sendJson(res, result.success ? 202 : 409, result);
+      sendJson(req, res, result.success ? 202 : 409, result);
+      return true;
     }
   } catch (error) {
-    return sendJson(res, error.status || 500, {
+    sendJson(req, res, error.status || 500, {
       error: error.message || "Integration request failed",
       missing: error.missing || undefined,
     });
+    return true;
   }
 
   return false;
@@ -421,11 +579,12 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
   if (req.method === "GET") {
     const { data, error } = await ctx.supabaseAdmin
       .from("todos")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id,name,title,created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
 
     if (error) {
-      return Response.json({ error: error.message, code: error.code }, { status: 500 });
+      return Response.json({ error: "Supabase query failed", code: error.code }, { status: 500 });
     }
 
     return Response.json(data ?? []);
@@ -433,7 +592,7 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
 
   if (req.method === "POST") {
     const body = await req.json().catch(() => ({}));
-    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const name = cleanText(body?.name, 120);
 
     if (!name) {
       return Response.json({ error: "Missing required field: name" }, { status: 400 });
@@ -442,11 +601,11 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
     const { data, error } = await ctx.supabaseAdmin
       .from("todos")
       .insert({ name })
-      .select("*")
+      .select("id,name,title,created_at")
       .single();
 
     if (error) {
-      return Response.json({ error: error.message, code: error.code }, { status: 500 });
+      return Response.json({ error: "Supabase insert failed", code: error.code }, { status: 500 });
     }
 
     return Response.json(data, { status: 201 });
@@ -454,26 +613,121 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
 
   if (req.method === "DELETE") {
     const url = new URL(req.url);
-    const id = url.searchParams.get("id");
+    const id = cleanText(url.searchParams.get("id"), 128);
 
-    if (!id) {
-      return Response.json({ error: "Missing required query param: id" }, { status: 400 });
+    if (!id || !/^[\w-]{1,128}$/.test(id)) {
+      return Response.json({ error: "Missing or invalid query param: id" }, { status: 400 });
     }
 
     const { error } = await ctx.supabaseAdmin.from("todos").delete().eq("id", id);
 
     if (error) {
-      return Response.json({ error: error.message, code: error.code }, { status: 500 });
+      return Response.json({ error: "Supabase delete failed", code: error.code }, { status: 500 });
     }
 
     return Response.json({ ok: true });
   }
 
-  return Response.json({ error: "Method not allowed" }, { status: 405 });
+  return Response.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "GET, POST, DELETE" } });
 });
 
+async function forwardSupabaseTodos(req, res, url) {
+  if (!["GET", "POST", "DELETE"].includes(req.method)) {
+    sendMethodNotAllowed(req, res, ["GET", "POST", "DELETE"]);
+    return;
+  }
+  if (!supabaseUrl || !supabaseSecretKey) {
+    sendJson(req, res, 503, { error: "Supabase is not configured" });
+    return;
+  }
+
+  const headers = new Headers({
+    apikey: supabaseSecretKey,
+    Authorization: `Bearer ${supabaseSecretKey}`,
+  });
+  const init = { method: req.method, headers };
+  if (req.method === "POST") {
+    headers.set("Content-Type", "application/json");
+    init.body = await readRawBody(req, MAX_JSON_BODY_BYTES);
+  }
+
+  const authRequest = new Request(url.toString(), init);
+  const response = await supabaseTodosHandler(authRequest);
+  const body = await response.text();
+
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
+  const responseHeaders = {
+    "Content-Type": response.headers.get("content-type") || "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  };
+  const allowHeader = response.headers.get("allow");
+  if (allowHeader) responseHeaders.Allow = allowHeader;
+  res.writeHead(response.status, responseHeaders);
+  res.end(body);
+}
+
+function safeStaticPath(pathname) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  if (decoded.includes("\0")) return null;
+  const requestedPath = decoded === "/" ? "/index.html" : decoded;
+  const fullPath = resolve(distDir, `.${requestedPath}`);
+  if (fullPath !== distDir && !fullPath.startsWith(`${distDir}${sep}`)) return null;
+  return fullPath;
+}
+
+function serveStatic(req, res, url) {
+  const fullPath = safeStaticPath(url.pathname);
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
+
+  if (!fullPath) {
+    res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Bad request");
+    return;
+  }
+
+  if (!existsSync(fullPath)) {
+    const indexPath = resolve(distDir, "index.html");
+    if (existsSync(indexPath)) {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      createReadStream(indexPath).pipe(res);
+      return;
+    }
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+
+  try {
+    if (!statSync(fullPath).isFile()) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not found");
+      return;
+    }
+  } catch {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+
+  const ext = extname(fullPath);
+  const isHtml = ext === ".html";
+  res.writeHead(200, {
+    "Content-Type": mimeTypes[ext] || "application/octet-stream",
+    "Cache-Control": isHtml ? "no-store" : "public, max-age=31536000, immutable",
+  });
+  createReadStream(fullPath).pipe(res);
+}
+
 createServer((req, res) => {
-  setCorsHeaders(res);
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -481,49 +735,36 @@ createServer((req, res) => {
     return;
   }
 
-  const url = new URL(req.url, "http://127.0.0.1:8787");
+  const url = new URL(req.url, `http://${HOST}:${PORT}`);
+
+  if (url.pathname.startsWith("/api/") && !checkRateLimit(req, "api", API_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many requests. Try again shortly." });
+    return;
+  }
 
   if (url.pathname === "/api/todos") {
-    const authRequest = new Request(url.toString(), {
-      method: req.method,
-      headers: {
-        apikey: supabaseSecretKey || "",
-        Authorization: supabaseSecretKey ? `Bearer ${supabaseSecretKey}` : "",
-      },
-    });
-
-    supabaseTodosHandler(authRequest)
-      .then(async (response) => {
-        const body = await response.text();
-        res.writeHead(response.status, {
-          "Content-Type": response.headers.get("content-type") || "application/json",
-          "Cache-Control": "no-store",
-        });
-        res.end(body);
-      })
-      .catch((error) => {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }));
+    forwardSupabaseTodos(req, res, url).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown Supabase error" });
     });
     return;
   }
 
   if (url.pathname === "/api/agents/run") {
     handleAgentRun(req, res).catch((error) => {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : "Unknown agent run error" });
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown agent run error" });
     });
     return;
   }
 
   if (url.pathname.startsWith("/api/integrations")) {
     handleIntegrationRoutes(req, res, url).catch((error) => {
-      sendJson(res, 500, { error: error instanceof Error ? error.message : "Unknown integration error" });
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown integration error" });
     });
     return;
   }
 
   if (url.pathname === "/api/health") {
-    sendJson(res, 200, {
+    sendJson(req, res, 200, {
       ok: true,
       supabaseConfigured: Boolean(supabaseUrl && supabaseSecretKey),
       agentRunEndpoint: "/api/agents/run",
@@ -532,24 +773,12 @@ createServer((req, res) => {
     return;
   }
 
-  const filePath = url.pathname === "/" ? "/index.html" : url.pathname;
-  const fullPath = join(distDir, filePath);
-
-  if (!existsSync(fullPath)) {
-    const indexPath = join(distDir, "index.html");
-    if (existsSync(indexPath)) {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      createReadStream(indexPath).pipe(res);
-      return;
-    }
-    res.writeHead(404);
-    res.end("Not found");
+  if (url.pathname.startsWith("/api/")) {
+    sendJson(req, res, 404, { error: "Not found" });
     return;
   }
 
-  const ext = extname(fullPath);
-  res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
-  createReadStream(fullPath).pipe(res);
-}).listen(8787, "127.0.0.1", () => {
-  console.log("Backend listening on http://127.0.0.1:8787");
+  serveStatic(req, res, url);
+}).listen(PORT, HOST, () => {
+  console.log(`Backend listening on http://${HOST}:${PORT}`);
 });
