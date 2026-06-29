@@ -207,6 +207,327 @@ function useIntegrationStatus() {
   return { ...state, refresh };
 }
 
+// ── Generic Supabase-backed data hook with localStorage fallback ──────────────
+
+const LS_KEYS = {
+  campaigns: "hiveai.campaigns",
+  brandProfiles: "hiveai.brandProfiles",
+  draftPosts: "hiveai.draftPosts",
+  scheduledPosts: "hiveai.scheduledPosts",
+  agentRuns: "hiveai.agentRuns",
+};
+
+function lsRead(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function lsWrite(key, data) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(data));
+  } catch { /* ignore quota errors */ }
+}
+
+function lsAdd(key, item) {
+  const list = lsRead(key);
+  const newItem = { ...item, id: item.id || crypto.randomUUID(), created_at: item.created_at || new Date().toISOString(), updated_at: new Date().toISOString() };
+  lsWrite(key, [newItem, ...list]);
+  return newItem;
+}
+
+function lsUpdate(key, id, patch) {
+  const list = lsRead(key);
+  const updated = list.map((item) => item.id === id ? { ...item, ...patch, updated_at: new Date().toISOString() } : item);
+  lsWrite(key, updated);
+  return updated.find((item) => item.id === id) || null;
+}
+
+function lsRemove(key, id) {
+  const list = lsRead(key);
+  lsWrite(key, list.filter((item) => item.id !== id));
+}
+
+function useApiData(endpoint, lsKey) {
+  const [state, setState] = useState({ loading: true, data: [], error: "", source: "loading" });
+
+  const load = async () => {
+    setState((s) => ({ ...s, loading: true, error: "" }));
+    try {
+      const res = await fetch(`${apiBaseUrl}${endpoint}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json().catch(() => ({}));
+      const rows = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+      setState({ loading: false, data: rows, error: "", source: "supabase" });
+    } catch {
+      const fallback = lsRead(lsKey);
+      setState({ loading: false, data: fallback, error: "", source: "localStorage" });
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const create = async (fields) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const row = await res.json();
+      setState((s) => ({ ...s, data: [row, ...s.data], source: "supabase" }));
+      return row;
+    } catch {
+      const row = lsAdd(lsKey, fields);
+      setState((s) => ({ ...s, data: [row, ...s.data], source: "localStorage" }));
+      return row;
+    }
+  };
+
+  const update = async (id, patch) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}${endpoint}/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const row = await res.json();
+      setState((s) => ({ ...s, data: s.data.map((item) => item.id === id ? row : item) }));
+      return row;
+    } catch {
+      const row = lsUpdate(lsKey, id, patch);
+      setState((s) => ({ ...s, data: s.data.map((item) => item.id === id ? (row || item) : item) }));
+      return row;
+    }
+  };
+
+  const remove = async (id) => {
+    try {
+      await fetch(`${apiBaseUrl}${endpoint}/${id}`, { method: "DELETE" });
+    } catch { /* best-effort */ }
+    lsRemove(lsKey, id);
+    setState((s) => ({ ...s, data: s.data.filter((item) => item.id !== id) }));
+  };
+
+  return { ...state, reload: load, create, update, remove };
+}
+
+function useCampaigns() {
+  return useApiData("/api/data/campaigns", LS_KEYS.campaigns);
+}
+
+function useAgentRuns() {
+  return useApiData("/api/data/agent-runs", LS_KEYS.agentRuns);
+}
+
+// ── CampaignsPage ──────────────────────────────────────────────────────────────
+
+const CAMPAIGN_STATUSES = ["draft", "ready", "active", "paused", "completed", "archived"];
+
+const STATUS_COLORS = {
+  draft: "#9ea1ad",
+  ready: "#6bb6ff",
+  active: "#56ffb0",
+  paused: "#ffb84a",
+  completed: "#b16cff",
+  archived: "#585d68",
+};
+
+function CampaignStatusBadge({ status }) {
+  return (
+    <span
+      style={{
+        background: `${STATUS_COLORS[status] || STATUS_COLORS.draft}22`,
+        color: STATUS_COLORS[status] || STATUS_COLORS.draft,
+        border: `1px solid ${STATUS_COLORS[status] || STATUS_COLORS.draft}44`,
+        padding: "2px 8px",
+        borderRadius: 6,
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        textTransform: "capitalize",
+      }}
+    >
+      {status}
+    </span>
+  );
+}
+
+function CampaignsPage() {
+  const { loading, data: campaigns, error, source, create, update, remove } = useCampaigns();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", subtitle: "", type: "", status: "draft", owner: "", launch_date: "" });
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  const resetForm = () => {
+    setForm({ title: "", subtitle: "", type: "", status: "draft", owner: "", launch_date: "" });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const openEdit = (campaign) => {
+    setForm({
+      title: campaign.title || "",
+      subtitle: campaign.subtitle || "",
+      type: campaign.type || "",
+      status: campaign.status || "draft",
+      owner: campaign.owner || "",
+      launch_date: campaign.launch_date || "",
+    });
+    setEditingId(campaign.id);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await update(editingId, form);
+      } else {
+        await create(form);
+      }
+      resetForm();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="agents-page">
+      <MotionPanel className="panel agents-hero">
+        <div>
+          <div className="section-kicker">Campaigns</div>
+          <h1>Campaigns</h1>
+          <p>Plan, track, and manage your marketing campaigns. Data persists to Supabase when available, or localStorage as a fallback.</p>
+        </div>
+        <div className="agents-summary">
+          <strong>{campaigns.filter((c) => c.status === "active").length}</strong>
+          <span>active</span>
+        </div>
+      </MotionPanel>
+
+      <MotionPanel className="panel agents-board">
+        <div className="panel-title">
+          <h2>All campaigns</h2>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {source === "localStorage" && <span style={{ color: "#ffb84a", fontSize: "0.7rem" }}>localStorage</span>}
+            {source === "supabase" && <span style={{ color: "#56ffb0", fontSize: "0.7rem" }}>Supabase</span>}
+            <button
+              type="button"
+              className="primary-button"
+              style={{ padding: "4px 12px", fontSize: "0.8rem" }}
+              onClick={() => { setShowForm(true); setEditingId(null); }}
+            >
+              <Plus size={14} /> New
+            </button>
+          </span>
+        </div>
+
+        <AnimatePresence>
+          {showForm && (
+            <motion.form
+              className="panel"
+              style={{ padding: "1rem", marginBottom: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)" }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              onSubmit={handleSubmit}
+            >
+              <div className="builder-form-grid" style={{ marginBottom: "0.75rem" }}>
+                <label className="builder-field wide">
+                  <span>Title *</span>
+                  <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required />
+                </label>
+                <label className="builder-field wide">
+                  <span>Subtitle</span>
+                  <input value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} />
+                </label>
+                <label className="builder-field">
+                  <span>Type</span>
+                  <input value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} placeholder="Paid social, Email…" />
+                </label>
+                <label className="builder-field">
+                  <span>Owner</span>
+                  <input value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} />
+                </label>
+                <label className="builder-field">
+                  <span>Launch date</span>
+                  <input type="date" value={form.launch_date} onChange={(e) => setForm((f) => ({ ...f, launch_date: e.target.value }))} />
+                </label>
+                <label className="builder-field">
+                  <span>Status</span>
+                  <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "6px 8px" }}>
+                    {CAMPAIGN_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit" className="primary-button" disabled={saving} style={{ padding: "6px 16px" }}>
+                  {saving ? "Saving…" : editingId ? "Save changes" : "Create campaign"}
+                </button>
+                <button type="button" className="secondary-button" onClick={resetForm} style={{ padding: "6px 16px" }}>Cancel</button>
+              </div>
+            </motion.form>
+          )}
+        </AnimatePresence>
+
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center", opacity: 0.5 }}>Loading campaigns…</div>
+        ) : error ? (
+          <div style={{ padding: "1rem", color: "#ff6b6b", background: "rgba(255,100,100,0.08)", borderRadius: 8 }}>{error}</div>
+        ) : campaigns.length === 0 ? (
+          <div style={{ padding: "2rem", textAlign: "center", opacity: 0.5 }}>
+            <PaperPlaneTilt size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+            <p>No campaigns yet. Create your first one above.</p>
+          </div>
+        ) : (
+          <motion.div className="agents-list" variants={{ animate: { transition: { staggerChildren: 0.06 } } }}>
+            {campaigns.map((campaign, index) => (
+              <motion.article
+                className="agent-entry"
+                key={campaign.id}
+                style={{ "--index": index }}
+                variants={itemVariants}
+                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.34)" }}
+                layout
+              >
+                <div className="agent-entry-icon" style={{ background: `${STATUS_COLORS[campaign.status] || STATUS_COLORS.draft}22` }}>
+                  <PaperPlaneTilt size={22} style={{ color: STATUS_COLORS[campaign.status] || STATUS_COLORS.draft }} />
+                </div>
+                <div className="agent-entry-copy">
+                  <div className="agent-entry-top">
+                    <div className="agent-entry-name">
+                      <h3>{campaign.title}</h3>
+                      <CampaignStatusBadge status={campaign.status} />
+                    </div>
+                    <div className="agent-entry-actions">
+                      <button type="button" className="agent-action start" onClick={() => openEdit(campaign)}>Edit</button>
+                      <button type="button" className="agent-action stop" onClick={() => remove(campaign.id)}>Delete</button>
+                    </div>
+                  </div>
+                  <div className="agent-activity">
+                    {campaign.subtitle && <span>{campaign.subtitle}</span>}
+                    {campaign.type && <span style={{ opacity: 0.6 }}> · {campaign.type}</span>}
+                    {campaign.owner && <span style={{ opacity: 0.5 }}> · {campaign.owner}</span>}
+                    {campaign.launch_date && <span style={{ opacity: 0.5 }}> · {campaign.launch_date}</span>}
+                  </div>
+                </div>
+              </motion.article>
+            ))}
+          </motion.div>
+        )}
+      </MotionPanel>
+    </div>
+  );
+}
+
 function statusLabel(status) {
   if (status === "connected") return "Connected";
   if (status === "needs_reconnect") return "Needs Reconnect";
@@ -581,11 +902,34 @@ function BriefsPage() {
         throw new Error(data?.error || "Agent run failed");
       }
 
+      const runStatus = data?.ok === false ? "partial" : "complete";
       setAgentRunState({
-        status: data?.ok === false ? "partial" : "complete",
+        status: runStatus,
         message: data?.ok === false ? "Draft generated; publishing needs attention" : "Agent run completed",
         result: data,
       });
+
+      // Persist agent run — best-effort, errors silently fall back to localStorage
+      const runRecord = {
+        run_id: data?.runId || null,
+        model: data?.model || briefValues.modelName || null,
+        prompt: briefValues.prompt || null,
+        platforms: briefValues.platforms || null,
+        draft_content: data?.draft || null,
+        status: "completed",
+        publish_status: data?.publishing?.status || null,
+        usage: data?.usage || null,
+      };
+      try {
+        const saveRes = await fetch(`${apiBaseUrl}/api/data/agent-runs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(runRecord),
+        });
+        if (!saveRes.ok) throw new Error("save failed");
+      } catch {
+        lsAdd(LS_KEYS.agentRuns, runRecord);
+      }
     } catch (error) {
       setAgentRunState({
         status: "error",
@@ -1627,7 +1971,7 @@ function App() {
     ),
     Briefs: <BriefsPage />,
     Agents: <AgentsPage roster={roster} onSetAgentActive={setAgentActive} />,
-    Campaigns: <PageShell title="Campaigns" subtitle="A lightweight campaigns page." />,
+    Campaigns: <CampaignsPage />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <CalendarPanel />,
     Insights: <PageShell title="Insights" subtitle="A lightweight insights page." />,
