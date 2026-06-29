@@ -1519,6 +1519,308 @@ img {
   line-height: 1.6;
 }
 
+.trend-hunter-page {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.trend-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.42fr);
+  gap: 24px;
+  align-items: end;
+  min-height: 260px;
+  padding: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 14%, rgba(86, 182, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 14% 88%, rgba(135, 238, 156, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(24, 19, 36, 0.94), rgba(11, 10, 17, 0.95));
+}
+
+.trend-hero h1 {
+  max-width: 760px;
+  margin: 16px 0 14px;
+  font-size: clamp(3rem, 5.8vw, 5.35rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.trend-hero p {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.trend-hero-metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.trend-hero-metrics div,
+.trend-category-card,
+.trend-card,
+.trend-ai-card {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.trend-hero-metrics div {
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.trend-hero-metrics strong {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.trend-hero-metrics span,
+.trend-category-card small,
+.trend-select span,
+.trend-card p,
+.trend-meta-grid span,
+.trend-audience,
+.trend-ai-card span {
+  color: var(--muted);
+}
+
+.trend-filter-panel,
+.trend-list-panel,
+.trend-category-panel,
+.trend-ai-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.trend-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.trend-select {
+  display: grid;
+  gap: 8px;
+}
+
+.trend-select span {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trend-select select {
+  width: 100%;
+  min-height: 42px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: 0;
+  background: rgba(10, 9, 15, 0.92);
+  padding: 0 12px;
+}
+
+.trend-select select:focus {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(27, 140, 255, 0.12);
+}
+
+.trend-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.45fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.trend-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trend-category-card {
+  display: grid;
+  gap: 8px;
+  min-height: 104px;
+  padding: 14px;
+  color: var(--ink);
+  text-align: left;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 220ms ease, background 220ms ease;
+}
+
+.trend-category-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  background: rgba(86, 182, 255, 0.045);
+}
+
+.trend-category-card strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.trend-list {
+  display: grid;
+  gap: 12px;
+}
+
+.trend-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  transition: border-color 220ms ease, background 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.trend-card.active,
+.trend-card:hover {
+  border-color: rgba(86, 182, 255, 0.34);
+  background:
+    radial-gradient(circle at 94% 8%, rgba(86, 182, 255, 0.1), transparent 22%),
+    rgba(86, 182, 255, 0.032);
+}
+
+.trend-card:hover {
+  transform: translateY(-2px);
+}
+
+.trend-card-main {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+}
+
+.trend-card-head,
+.trend-audience,
+.trend-platforms,
+.trend-actions {
+  display: flex;
+  align-items: center;
+}
+
+.trend-card-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trend-card-head span,
+.trend-platforms small {
+  color: var(--electric-hot);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trend-card-head strong {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: conic-gradient(var(--electric-hot) 0 80%, rgba(255, 255, 255, 0.08) 80% 100%);
+  box-shadow: 0 0 24px rgba(27, 140, 255, 0.24);
+}
+
+.trend-card h3 {
+  margin: 0;
+  font-size: 1.14rem;
+}
+
+.trend-card p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.trend-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trend-meta-grid span {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.018);
+  font-size: 0.74rem;
+}
+
+.trend-meta-grid strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.trend-audience {
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.trend-platforms {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.trend-platforms small {
+  padding: 5px 8px;
+  border: 1px solid rgba(86, 182, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(27, 140, 255, 0.07);
+}
+
+.trend-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trend-actions .secondary-button,
+.trend-actions .primary-button {
+  min-height: 36px;
+  padding-inline: 12px;
+  font-size: 0.8rem;
+}
+
+.trend-ai-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.trend-ai-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 180px;
+  padding: 14px;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 85% 12%, rgba(86, 182, 255, 0.08), transparent 26%),
+    rgba(255, 255, 255, 0.02);
+}
+
+.trend-ai-card strong {
+  color: var(--electric-hot);
+}
+
+.trend-ai-card span {
+  line-height: 1.45;
+  font-size: 0.84rem;
+}
+
 .agents-page {
   display: grid;
   gap: 14px;
@@ -3325,6 +3627,8 @@ img {
   .briefs-dashboard-grid,
   .agents-hero,
   .integration-grid,
+  .trend-hero,
+  .trend-layout,
   .approval-layout {
     grid-template-columns: 1fr;
   }
@@ -3382,6 +3686,11 @@ img {
     flex-direction: column;
     min-height: auto;
   }
+
+  .trend-filters,
+  .trend-ai-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -3434,6 +3743,26 @@ img {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .trend-hero {
+    min-height: auto;
+    padding: 22px;
+  }
+
+  .trend-hero h1 {
+    font-size: clamp(2.45rem, 11vw, 3.35rem);
+  }
+
+  .trend-filters,
+  .trend-category-grid,
+  .trend-meta-grid,
+  .trend-ai-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-actions {
+    display: grid;
   }
 
   .hero-actions {

@@ -15,6 +15,7 @@ import {
   Clock,
   Command,
   ClipboardText,
+  Compass,
   Eye,
   FloppyDisk,
   Flask,
@@ -43,6 +44,9 @@ import {
 } from "@phosphor-icons/react";
 import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
+import { discoverTrends } from "./trend-hunter/providers";
+import { loadSavedTrends, saveTrend } from "./trend-hunter/savedTrendsStore";
+import { trendCategories, trendFilterOptions, trendPlatforms } from "./trend-hunter/trendHunterData";
 import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
 import { TeamChatPage } from "./components/TeamChatPage.jsx";
 
@@ -117,6 +121,7 @@ const itemVariants = {
 
 const navItems = [
   ["Command center", HouseLine],
+  ["Trend Hunter", Compass],
   ["AI Team Chat", UsersThree],
   ["Briefs", Command],
   ["Agents", UsersThree],
@@ -1110,6 +1115,224 @@ function SettingsPage({ settings, onToggle, onSelect }) {
   );
 }
 
+const defaultTrendFilters = {
+  country: "All Countries",
+  state: "All States",
+  city: "All Cities",
+  industry: "All Industries",
+  platform: "All Platforms",
+  timeRange: "Past 7 days",
+};
+
+function TrendHunterPage() {
+  const [filters, setFilters] = useState(defaultTrendFilters);
+  const [trends, setTrends] = useState([]);
+  const [savedTrends, setSavedTrends] = useState([]);
+  const [selectedTrendId, setSelectedTrendId] = useState("");
+  const [storageStatus, setStorageStatus] = useState("Ready");
+  const selectedTrend = trends.find((trend) => trend.id === selectedTrendId) || trends[0];
+
+  useEffect(() => {
+    let alive = true;
+
+    discoverTrends(filters).then((nextTrends) => {
+      if (!alive) return;
+      setTrends(nextTrends);
+      setSelectedTrendId((current) => (nextTrends.some((trend) => trend.id === current) ? current : nextTrends[0]?.id || ""));
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [filters]);
+
+  useEffect(() => {
+    let alive = true;
+
+    loadSavedTrends().then((items) => {
+      if (alive) setSavedTrends(items);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+
+  const persistTrend = async (trend) => {
+    const result = await saveTrend(trend);
+    setSavedTrends((current) => [result.trend, ...current.filter((item) => item.id !== trend.id)].slice(0, 50));
+    setStorageStatus(`Saved to ${result.storage}`);
+  };
+
+  const categoryCounts = trendCategories.map((category) => ({
+    category,
+    count: trends.filter((trend) => trend.category === category).length,
+    topScore: Math.max(0, ...trends.filter((trend) => trend.category === category).map((trend) => trend.score)),
+  }));
+
+  return (
+    <motion.div className="trend-hunter-page" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
+      <MotionPanel className="panel trend-hero">
+        <div>
+          <span className="section-kicker">Trend Hunter</span>
+          <h1>Discover demand before it peaks.</h1>
+          <p>HiveAI watches emerging platform signals, ranks the opportunity, and turns each trend into campaign-ready creative prompts.</p>
+        </div>
+        <div className="trend-hero-metrics">
+          <div>
+            <strong>{trends.length}</strong>
+            <span>active trends</span>
+          </div>
+          <div>
+            <strong>{savedTrends.length}</strong>
+            <span>saved ideas</span>
+          </div>
+          <div>
+            <strong>{trendProvidersLabel()}</strong>
+            <span>mock adapters</span>
+          </div>
+        </div>
+      </MotionPanel>
+
+      <MotionPanel className="panel trend-filter-panel">
+        <div className="panel-title">
+          <h2>Signal filters</h2>
+          <span>{storageStatus}</span>
+        </div>
+        <div className="trend-filters">
+          <TrendSelect label="Country" value={filters.country} options={["All Countries", ...trendFilterOptions.countries]} onChange={(value) => updateFilter("country", value)} />
+          <TrendSelect label="State" value={filters.state} options={["All States", ...trendFilterOptions.states]} onChange={(value) => updateFilter("state", value)} />
+          <TrendSelect label="City" value={filters.city} options={["All Cities", ...trendFilterOptions.cities]} onChange={(value) => updateFilter("city", value)} />
+          <TrendSelect label="Industry" value={filters.industry} options={["All Industries", ...trendFilterOptions.industries]} onChange={(value) => updateFilter("industry", value)} />
+          <TrendSelect label="Platform" value={filters.platform} options={["All Platforms", ...trendPlatforms]} onChange={(value) => updateFilter("platform", value)} />
+          <TrendSelect label="Time Range" value={filters.timeRange} options={trendFilterOptions.timeRanges} onChange={(value) => updateFilter("timeRange", value)} />
+        </div>
+      </MotionPanel>
+
+      <div className="trend-layout">
+        <MotionPanel className="panel trend-category-panel">
+          <div className="panel-title">
+            <h2>Trend boards</h2>
+            <span>8 categories</span>
+          </div>
+          <div className="trend-category-grid">
+            {categoryCounts.map((item) => (
+              <button className="trend-category-card" type="button" key={item.category}>
+                <span>{item.category}</span>
+                <strong>{item.count}</strong>
+                <small>Top score {item.topScore}</small>
+              </button>
+            ))}
+          </div>
+        </MotionPanel>
+
+        <MotionPanel className="panel trend-list-panel">
+          <div className="panel-title">
+            <h2>Ranked opportunities</h2>
+            <span>{filters.platform}</span>
+          </div>
+          <div className="trend-list">
+            {trends.map((trend) => (
+              <TrendCard
+                key={trend.id}
+                trend={trend}
+                active={selectedTrend?.id === trend.id}
+                saved={savedTrends.some((item) => item.id === trend.id)}
+                onSelect={() => setSelectedTrendId(trend.id)}
+                onSave={() => persistTrend(trend)}
+              />
+            ))}
+          </div>
+        </MotionPanel>
+      </div>
+
+      {selectedTrend && (
+        <MotionPanel className="panel trend-ai-panel">
+          <div className="panel-title">
+            <h2>AI opportunity generator</h2>
+            <span>{selectedTrend.title}</span>
+          </div>
+          <div className="trend-ai-grid">
+            {[
+              ["Post ideas", selectedTrend.ai.postIdeas],
+              ["Video ideas", selectedTrend.ai.videoIdeas],
+              ["Hooks", selectedTrend.ai.hooks],
+              ["Captions", selectedTrend.ai.captions],
+              ["Ad copy", selectedTrend.ai.adCopy],
+              ["Email ideas", selectedTrend.ai.emailIdeas],
+              ["Campaign ideas", selectedTrend.ai.campaignIdeas],
+            ].map(([label, ideas]) => (
+              <article className="trend-ai-card" key={label}>
+                <strong>{label}</strong>
+                {ideas.map((idea) => (
+                  <span key={idea}>{idea}</span>
+                ))}
+              </article>
+            ))}
+          </div>
+        </MotionPanel>
+      )}
+    </motion.div>
+  );
+}
+
+function trendProvidersLabel() {
+  return trendPlatforms.length;
+}
+
+function TrendSelect({ label, value, options, onChange }) {
+  return (
+    <label className="trend-select">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option value={option} key={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TrendCard({ trend, active, saved, onSelect, onSave }) {
+  return (
+    <article className={active ? "trend-card active" : "trend-card"}>
+      <button type="button" className="trend-card-main" onClick={onSelect}>
+        <div className="trend-card-head">
+          <span>{trend.category}</span>
+          <strong>{trend.score}</strong>
+        </div>
+        <h3>{trend.title}</h3>
+        <p>{trend.signal}</p>
+        <div className="trend-meta-grid">
+          <span>Growth <strong>+{trend.growth}%</strong></span>
+          <span>Lifespan <strong>{trend.lifespan}</strong></span>
+          <span>Difficulty <strong>{trend.difficulty}</strong></span>
+          <span>Platform <strong>{trend.platform}</strong></span>
+        </div>
+        <div className="trend-audience">
+          <UsersThree size={15} />
+          {trend.audience}
+        </div>
+        <div className="trend-platforms">
+          {trend.suggestedPlatforms.map((platform) => (
+            <small key={platform}>{platform}</small>
+          ))}
+        </div>
+      </button>
+      <div className="trend-actions">
+        <MagneticButton className="secondary-button" type="button"><Megaphone size={16} />Create Campaign</MagneticButton>
+        <MagneticButton className="secondary-button" type="button"><CalendarBlank size={16} />Create Calendar Event</MagneticButton>
+        <MagneticButton className="secondary-button" type="button"><Lightning size={16} />Generate Content</MagneticButton>
+        <MagneticButton className={saved ? "primary-button" : "secondary-button"} type="button" onClick={onSave}><FloppyDisk size={16} />{saved ? "Saved" : "Save to Ideas"}</MagneticButton>
+      </div>
+    </article>
+  );
+}
+
 function PublishWorkspace({ integrations, onRefresh }) {
   const [selectedPlatforms, setSelectedPlatforms] = useState(["x"]);
   const [values, setValues] = useState(publishInitialValues);
@@ -1687,6 +1910,7 @@ function App() {
         {settings.notifications && <WarningBar />}
       </>
     ),
+    "Trend Hunter": <TrendHunterPage />,
     "AI Team Chat": <TeamChatPage />,
     Briefs: <BriefsPage />,
     Agents: <AgentsPage />,
