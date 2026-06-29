@@ -156,10 +156,13 @@ npm run preview
 
 ## Project Layout
 
-- `src/main.jsx` - application UI, routing state, and interactive behavior
-- `src/styles.css` - visual system, responsive layout, and motion styling
-- `public/` - static assets
-- `dist/` - production build output
+- `UI/` - entire frontend application
+- `UI/src/main.jsx` - application UI, routing state, and interactive behavior
+- `UI/src/styles.css` - visual system, responsive layout, and motion styling
+- `UI/public/` - static assets
+- `UI/dist/` - production build output
+- `src/social/` - backend social integration service
+- `server.mjs` - backend HTTP server
 
 ## Notes
 
