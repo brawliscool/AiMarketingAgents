@@ -45,6 +45,7 @@ import {
   XLogo,
 } from "@phosphor-icons/react";
 import "./styles.css";
+import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
 
 function LogoMark() {
   const uid = useId();
@@ -144,23 +145,6 @@ const launches = [
   ["Jun 27", "Launch creator-led retargeting", "Paid social", "Ready", "Mara Voss"],
   ["Jun 29", "Refresh onboarding nurture", "Lifecycle", "Needs review", "Ilya Ren"],
   ["Jul 02", "Test founder note sequence", "Email", "Drafting", "Theo Kline"],
-];
-
-const calendarDays = [
-  { day: 23, label: "Mon", muted: true },
-  { day: 24, label: "Tue", muted: true },
-  { day: 25, label: "Wed", muted: true },
-  { day: 26, label: "Thu", active: true },
-  { day: 27, label: "Fri", event: "Launch" },
-  { day: 28, label: "Sat" },
-  { day: 29, label: "Sun" },
-  { day: 30, label: "Mon" },
-  { day: 1, label: "Tue", next: true, event: "Sync" },
-  { day: 2, label: "Wed", next: true },
-  { day: 3, label: "Thu", next: true, event: "Review" },
-  { day: 4, label: "Fri", next: true },
-  { day: 5, label: "Sat", next: true },
-  { day: 6, label: "Sun", next: true },
 ];
 
 const briefBuilderFields = [
@@ -1330,73 +1314,6 @@ function Launches() {
   );
 }
 
-function CalendarPanel() {
-  const [selectedDay, setSelectedDay] = useState(26);
-
-  return (
-    <MotionPanel className="panel calendar-panel">
-      <div className="calendar-header">
-        <div>
-          <div className="section-kicker">
-            <CalendarBlank size={16} />
-            Calendar
-          </div>
-          <h2>June 2026</h2>
-          <p>Click any day to focus the schedule and surface the next action.</p>
-        </div>
-        <div className="calendar-summary">
-          <strong>{selectedDay}</strong>
-          <span>Selected day</span>
-        </div>
-      </div>
-
-      <div className="calendar-grid" role="grid" aria-label="Monthly calendar">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-          <div className="calendar-dow" key={day}>
-            {day}
-          </div>
-        ))}
-        {calendarDays.map((cell, index) => {
-          const isSelected = selectedDay === cell.day && !cell.next;
-          return (
-            <motion.button
-              key={`${cell.label}-${cell.day}-${index}`}
-              type="button"
-              className={
-                cell.muted
-                  ? "calendar-cell muted"
-                  : cell.next
-                    ? "calendar-cell next"
-                    : isSelected
-                      ? "calendar-cell selected"
-                      : "calendar-cell"
-              }
-              onClick={() => setSelectedDay(cell.day)}
-              whileHover={{ y: -2, scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="calendar-number">{cell.day}</span>
-              <span className="calendar-label">{cell.label}</span>
-              {cell.event && <span className="calendar-event">{cell.event}</span>}
-            </motion.button>
-          );
-        })}
-      </div>
-
-      <div className="calendar-footer">
-        <div className="calendar-chip">
-          <span className="calendar-dot" />
-          <strong>Selected</strong>
-          <span>{selectedDay === 26 ? "Today" : `Day ${selectedDay}`}</span>
-        </div>
-        <MagneticButton className="secondary-button" type="button">
-          Open full schedule
-        </MagneticButton>
-      </div>
-    </MotionPanel>
-  );
-}
-
 function BottomCards() {
   return (
     <div className="bottom-grid">
@@ -1600,7 +1517,7 @@ function App() {
                 <Plus size={20} />
                 Build new brief
               </MagneticButton>
-              <MagneticButton className="secondary-button large" type="button">
+              <MagneticButton className="secondary-button large" type="button" onClick={() => setCurrentPage("Calendar")}>
                 <CalendarBlank size={20} />
                 Open calendar
               </MagneticButton>
@@ -1629,7 +1546,7 @@ function App() {
     Agents: <AgentsPage roster={roster} onSetAgentActive={setAgentActive} />,
     Campaigns: <PageShell title="Campaigns" subtitle="A lightweight campaigns page." />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
-    Calendar: <CalendarPanel />,
+    Calendar: <MarketingCalendarPage />,
     Insights: <PageShell title="Insights" subtitle="A lightweight insights page." />,
     Integrations: <IntegrationsPage />,
     Settings: <SettingsPage settings={settings} onToggle={toggleSetting} onSelect={updateSetting} />,

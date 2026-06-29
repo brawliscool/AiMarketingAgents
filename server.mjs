@@ -755,6 +755,199 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
   return Response.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "GET, POST, DELETE" } });
 });
 
+const CALENDAR_PLATFORMS = new Set(["facebook", "instagram", "tiktok", "x", "reddit", "linkedin", "youtube"]);
+const CALENDAR_STATUSES = new Set(["draft", "ready", "scheduled", "posted", "failed"]);
+
+function normalizeCalendarEventInput(body) {
+  const platform = cleanText(body?.platform, 32).toLowerCase();
+  const status = cleanText(body?.status, 24).toLowerCase() || "draft";
+
+  if (!CALENDAR_PLATFORMS.has(platform)) {
+    throw Object.assign(new Error("Invalid platform"), { status: 400 });
+  }
+  if (!CALENDAR_STATUSES.has(status)) {
+    throw Object.assign(new Error("Invalid status"), { status: 400 });
+  }
+
+  const title = requiredString(body, "title", 240);
+  if (!title) {
+    throw Object.assign(new Error("Missing required field: title"), { status: 400 });
+  }
+
+  const scheduledAt = cleanText(body?.scheduled_at ?? body?.scheduledAt, 64);
+  if (!scheduledAt || Number.isNaN(Date.parse(scheduledAt))) {
+    throw Object.assign(new Error("Missing or invalid scheduled_at"), { status: 400 });
+  }
+
+  return {
+    id: cleanText(body?.id, 128) || undefined,
+    title,
+    platform,
+    campaign_id: cleanText(body?.campaign_id ?? body?.campaignId, 120) || null,
+    campaign_name: cleanText(body?.campaign_name ?? body?.campaignName, 240) || null,
+    agent_id: cleanText(body?.agent_id ?? body?.agentId, 120) || null,
+    scheduled_at: new Date(scheduledAt).toISOString(),
+    status,
+    notes: cleanText(body?.notes, 4000) || null,
+    content_preview: cleanText(body?.content_preview ?? body?.contentPreview, 8000) || null,
+    recurring: body?.recurring && typeof body.recurring === "object" ? body.recurring : null,
+  };
+}
+
+const supabaseCalendarHandler = withSupabase({ auth: "secret" }, async (req, ctx) => {
+  const url = new URL(req.url);
+  const eventId = cleanText(url.searchParams.get("id"), 128);
+
+  if (req.method === "GET" && url.pathname === "/api/calendar/events") {
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .order("scheduled_at", { ascending: true })
+      .limit(500);
+
+    if (error) {
+      return Response.json({ error: "Supabase query failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data ?? []);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/calendar/events") {
+    const body = await req.json().catch(() => ({}));
+    const payload = normalizeCalendarEventInput(body);
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .insert(payload)
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .single();
+
+    if (error) {
+      return Response.json({ error: "Supabase insert failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data, { status: 201 });
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/calendar/events") {
+    if (!eventId || !/^[\w-]{1,128}$/.test(eventId)) {
+      return Response.json({ error: "Missing or invalid query param: id" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const payload = normalizeCalendarEventInput(body);
+    delete payload.id;
+
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", eventId)
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .single();
+
+    if (error) {
+      return Response.json({ error: "Supabase update failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data);
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/calendar/events") {
+    if (!eventId || !/^[\w-]{1,128}$/.test(eventId)) {
+      return Response.json({ error: "Missing or invalid query param: id" }, { status: 400 });
+    }
+
+    const { error } = await ctx.supabaseAdmin.from("marketing_calendar_events").delete().eq("id", eventId);
+
+    if (error) {
+      return Response.json({ error: "Supabase delete failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json({ ok: true });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/calendar/events/sync") {
+    const body = await req.json().catch(() => ({}));
+    const events = Array.isArray(body?.events) ? body.events : [];
+
+    const normalized = events.slice(0, 500).map((event) => normalizeCalendarEventInput(event));
+
+    const { error: deleteError } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+
+    if (deleteError) {
+      return Response.json({ error: "Supabase sync failed", code: deleteError.code }, { status: 500 });
+    }
+
+    if (normalized.length === 0) {
+      return Response.json({ ok: true, count: 0 });
+    }
+
+    const { error: insertError } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .insert(normalized);
+
+    if (insertError) {
+      return Response.json({ error: "Supabase sync failed", code: insertError.code }, { status: 500 });
+    }
+
+    return Response.json({ ok: true, count: normalized.length });
+  }
+
+  return Response.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "GET, POST, PUT, DELETE" } });
+});
+
+async function forwardSupabaseCalendar(req, res, url) {
+  if (!["GET", "POST", "PUT", "DELETE"].includes(req.method)) {
+    sendMethodNotAllowed(req, res, ["GET", "POST", "PUT", "DELETE"]);
+    return;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Calendar API")) {
+    return;
+  }
+  if (["POST", "PUT"].includes(req.method) && rejectNonJsonRequest(req, res)) {
+    return;
+  }
+  if (!supabaseUrl || !supabaseSecretKey) {
+    sendJson(req, res, 503, { error: "Supabase is not configured" });
+    return;
+  }
+
+  const headers = new Headers({
+    apikey: supabaseSecretKey,
+    Authorization: `Bearer ${supabaseSecretKey}`,
+  });
+  const init = { method: req.method, headers };
+  if (["POST", "PUT"].includes(req.method)) {
+    headers.set("Content-Type", "application/json");
+    init.body = await readRawBody(req, MAX_JSON_BODY_BYTES);
+  }
+
+  const authRequest = new Request(url.toString(), init);
+  let response;
+  try {
+    response = await supabaseCalendarHandler(authRequest);
+  } catch (error) {
+    const status = error?.status || 500;
+    sendJson(req, res, status, { error: error instanceof Error ? error.message : "Calendar request failed" });
+    return;
+  }
+
+  const body = await response.text();
+
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
+  const responseHeaders = {
+    "Content-Type": response.headers.get("content-type") || "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  };
+  const allowHeader = response.headers.get("allow");
+  if (allowHeader) responseHeaders.Allow = allowHeader;
+  res.writeHead(response.status, responseHeaders);
+  res.end(body);
+}
+
 async function forwardSupabaseTodos(req, res, url) {
   if (!["GET", "POST", "DELETE"].includes(req.method)) {
     sendMethodNotAllowed(req, res, ["GET", "POST", "DELETE"]);
@@ -879,6 +1072,13 @@ export function handleRequest(req, res) {
   if (url.pathname === "/api/todos") {
     forwardSupabaseTodos(req, res, url).catch((error) => {
       sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown Supabase error" });
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/calendar/events" || url.pathname === "/api/calendar/events/sync") {
+    forwardSupabaseCalendar(req, res, url).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown calendar error" });
     });
     return;
   }
