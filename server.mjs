@@ -4,6 +4,8 @@ import { extname, resolve, sep } from "node:path";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { withSupabase } from "@supabase/server";
+import { createApprovalStore } from "./src/approval/store.js";
+import { createApprovalQueueService } from "./src/approval/service.js";
 import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 
 const root = process.cwd();
@@ -87,6 +89,8 @@ const mimeTypes = {
 };
 
 const rateBuckets = new Map();
+const approvalStore = createApprovalStore({ supabaseUrl, supabaseSecretKey });
+const approvalQueue = createApprovalQueueService(approvalStore);
 
 function normalizeTrustedBaseUrl(value, fallback) {
   try {
@@ -600,7 +604,31 @@ async function handleAgentRun(req, res) {
     return;
   }
 
-  const publishResult = await publishDraft(values, draft.content);
+  const queueItem = await approvalQueue.create({
+    content: {
+      text: draft.content,
+      title: draft.content.split(/\r?\n/)[0]?.slice(0, 120) || "Generated draft",
+      hashtags: [],
+      mediaUrls: [],
+      videoUrl: "",
+      imageUrl: "",
+      subreddit: "",
+      scheduledAt: values.postingSchedule || "",
+      campaignId: "agent-run",
+      agentId: "Content Writer",
+    },
+  });
+  const publishResult = values.publishLive
+    ? {
+        ok: false,
+        status: "approval_required",
+        note: "Generated content was queued for approval. Complete approvals before publishing.",
+      }
+    : {
+        ok: true,
+        status: "queued_for_approval",
+        note: "Draft generated and queued for approval.",
+      };
 
   sendJson(req, res, 200, {
     ok: publishResult.ok,
@@ -608,6 +636,7 @@ async function handleAgentRun(req, res) {
     model: draft.model,
     draft: draft.content,
     usage: draft.usage,
+    approvalQueueItemId: queueItem.id,
     publishing: buildPublishingResult(values, publishResult),
     secrets: {
       modelApiKey: "received_redacted",
@@ -692,6 +721,118 @@ async function handleIntegrationRoutes(req, res, url) {
     sendJson(req, res, error.status || 500, {
       error: error.message || "Integration request failed",
       missing: error.missing || undefined,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+async function handleApprovalRoutes(req, res, url) {
+  if (!url.pathname.startsWith("/api/approval")) return false;
+  if (!checkRateLimit(req, "approval", API_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many approval requests. Try again shortly." });
+    return true;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Content approval queue")) {
+    return true;
+  }
+
+  if (url.pathname === "/api/approval/queue" || url.pathname === "/api/approval/items") {
+    if (req.method === "GET") {
+      sendJson(req, res, 200, await approvalQueue.list());
+      return true;
+    }
+    if (req.method === "POST") {
+      const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+      const content = normalizePublishPayload(body.content || body);
+      const item = await approvalQueue.create({ content });
+      sendJson(req, res, 201, { item, persistenceMode: approvalStore.mode(), fallbackReason: approvalStore.fallbackReason() });
+      return true;
+    }
+    sendMethodNotAllowed(req, res, ["GET", "POST"]);
+    return true;
+  }
+
+  const itemMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)$/);
+  if (itemMatch) {
+    if (req.method !== "GET") {
+      sendMethodNotAllowed(req, res, ["GET"]);
+      return true;
+    }
+    const item = await approvalQueue.get(cleanText(itemMatch[1], 120));
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+    sendJson(req, res, 200, { item });
+    return true;
+  }
+
+  const actionMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)\/actions$/);
+  if (actionMatch) {
+    if (req.method !== "POST") {
+      sendMethodNotAllowed(req, res, ["POST"]);
+      return true;
+    }
+    const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+    const item = await approvalQueue.applyAction(cleanText(actionMatch[1], 120), body);
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+    sendJson(req, res, 200, { item });
+    return true;
+  }
+
+  const publishMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)\/publish$/);
+  if (publishMatch) {
+    if (req.method !== "POST") {
+      sendMethodNotAllowed(req, res, ["POST"]);
+      return true;
+    }
+    const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+    const itemId = cleanText(publishMatch[1], 120);
+    const item = await approvalQueue.get(itemId);
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+
+    const ownerStage = item.workflow.find((stage) => stage.stage === "Owner Approval");
+    if (!ownerStage || ownerStage.status !== "Approved") {
+      sendJson(req, res, 409, { error: "Owner approval is required before publishing" });
+      return true;
+    }
+
+    const platformList = Array.isArray(body.platforms) ? body.platforms : [];
+    const normalizedPlatforms = platformList
+      .map((platform) => {
+        try {
+          return parsePlatformOrThrow(platform);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (normalizedPlatforms.length === 0) {
+      sendJson(req, res, 400, { error: "At least one valid platform is required" });
+      return true;
+    }
+
+    const publishingPayload = normalizePublishPayload(item.content);
+    const responses = normalizedPlatforms.map((platform) => socialService.publish(platform, publishingPayload));
+    const hasFailure = responses.some((response) => !response.success);
+    const action = hasFailure ? "fail" : "publish";
+    const actionItem = await approvalQueue.applyAction(itemId, {
+      action,
+      actor: cleanText(body.actor, 120) || "Owner",
+      notes: hasFailure ? "One or more platform publishes failed." : "Published after owner approval.",
+    });
+    sendJson(req, res, hasFailure ? 409 : 200, {
+      item: actionItem,
+      responses,
     });
     return true;
   }
@@ -897,12 +1038,20 @@ export function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname.startsWith("/api/approval")) {
+    handleApprovalRoutes(req, res, url).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown approval queue error" });
+    });
+    return;
+  }
+
   if (url.pathname === "/api/health") {
     sendJson(req, res, 200, {
       ok: true,
       supabaseConfigured: Boolean(supabaseUrl && supabaseSecretKey),
       agentRunEndpoint: "/api/agents/run",
       integrationsEndpoint: "/api/integrations/status",
+      approvalQueueEndpoint: "/api/approval/queue",
     });
     return;
   }

@@ -44,6 +44,7 @@ import {
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
+import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
 
 function LogoMark() {
@@ -1155,7 +1156,7 @@ function IntegrationsPage() {
         </div>
       </MotionPanel>
 
-      <PublishWorkspace integrations={integrations} onRefresh={refresh} />
+      <ContentApprovalQueue integrations={integrations} onRefreshIntegrations={refresh} />
 
       <MotionPanel className="panel scheduler-panel">
         <div className="panel-title">
