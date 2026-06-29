@@ -7,6 +7,7 @@ import { withSupabase } from "@supabase/server";
 import { createApprovalStore } from "./src/approval/store.js";
 import { createApprovalQueueService } from "./src/approval/service.js";
 import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
+import { db, DbError } from "./src/lib/db.js";
 
 const root = process.cwd();
 const distDir = resolve(root, "UI/dist");
@@ -181,7 +182,7 @@ function setCorsHeaders(req, res) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Backend-Admin-Key");
   res.setHeader("Access-Control-Max-Age", "600");
 }
@@ -896,6 +897,199 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
   return Response.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "GET, POST, DELETE" } });
 });
 
+const CALENDAR_PLATFORMS = new Set(["facebook", "instagram", "tiktok", "x", "reddit", "linkedin", "youtube"]);
+const CALENDAR_STATUSES = new Set(["draft", "ready", "scheduled", "posted", "failed"]);
+
+function normalizeCalendarEventInput(body) {
+  const platform = cleanText(body?.platform, 32).toLowerCase();
+  const status = cleanText(body?.status, 24).toLowerCase() || "draft";
+
+  if (!CALENDAR_PLATFORMS.has(platform)) {
+    throw Object.assign(new Error("Invalid platform"), { status: 400 });
+  }
+  if (!CALENDAR_STATUSES.has(status)) {
+    throw Object.assign(new Error("Invalid status"), { status: 400 });
+  }
+
+  const title = requiredString(body, "title", 240);
+  if (!title) {
+    throw Object.assign(new Error("Missing required field: title"), { status: 400 });
+  }
+
+  const scheduledAt = cleanText(body?.scheduled_at ?? body?.scheduledAt, 64);
+  if (!scheduledAt || Number.isNaN(Date.parse(scheduledAt))) {
+    throw Object.assign(new Error("Missing or invalid scheduled_at"), { status: 400 });
+  }
+
+  return {
+    id: cleanText(body?.id, 128) || undefined,
+    title,
+    platform,
+    campaign_id: cleanText(body?.campaign_id ?? body?.campaignId, 120) || null,
+    campaign_name: cleanText(body?.campaign_name ?? body?.campaignName, 240) || null,
+    agent_id: cleanText(body?.agent_id ?? body?.agentId, 120) || null,
+    scheduled_at: new Date(scheduledAt).toISOString(),
+    status,
+    notes: cleanText(body?.notes, 4000) || null,
+    content_preview: cleanText(body?.content_preview ?? body?.contentPreview, 8000) || null,
+    recurring: body?.recurring && typeof body.recurring === "object" ? body.recurring : null,
+  };
+}
+
+const supabaseCalendarHandler = withSupabase({ auth: "secret" }, async (req, ctx) => {
+  const url = new URL(req.url);
+  const eventId = cleanText(url.searchParams.get("id"), 128);
+
+  if (req.method === "GET" && url.pathname === "/api/calendar/events") {
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .order("scheduled_at", { ascending: true })
+      .limit(500);
+
+    if (error) {
+      return Response.json({ error: "Supabase query failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data ?? []);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/calendar/events") {
+    const body = await req.json().catch(() => ({}));
+    const payload = normalizeCalendarEventInput(body);
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .insert(payload)
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .single();
+
+    if (error) {
+      return Response.json({ error: "Supabase insert failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data, { status: 201 });
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/calendar/events") {
+    if (!eventId || !/^[\w-]{1,128}$/.test(eventId)) {
+      return Response.json({ error: "Missing or invalid query param: id" }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const payload = normalizeCalendarEventInput(body);
+    delete payload.id;
+
+    const { data, error } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", eventId)
+      .select("id,title,platform,campaign_id,campaign_name,agent_id,scheduled_at,status,notes,content_preview,recurring,created_at,updated_at")
+      .single();
+
+    if (error) {
+      return Response.json({ error: "Supabase update failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json(data);
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/calendar/events") {
+    if (!eventId || !/^[\w-]{1,128}$/.test(eventId)) {
+      return Response.json({ error: "Missing or invalid query param: id" }, { status: 400 });
+    }
+
+    const { error } = await ctx.supabaseAdmin.from("marketing_calendar_events").delete().eq("id", eventId);
+
+    if (error) {
+      return Response.json({ error: "Supabase delete failed", code: error.code }, { status: 500 });
+    }
+
+    return Response.json({ ok: true });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/calendar/events/sync") {
+    const body = await req.json().catch(() => ({}));
+    const events = Array.isArray(body?.events) ? body.events : [];
+
+    const normalized = events.slice(0, 500).map((event) => normalizeCalendarEventInput(event));
+
+    const { error: deleteError } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+
+    if (deleteError) {
+      return Response.json({ error: "Supabase sync failed", code: deleteError.code }, { status: 500 });
+    }
+
+    if (normalized.length === 0) {
+      return Response.json({ ok: true, count: 0 });
+    }
+
+    const { error: insertError } = await ctx.supabaseAdmin
+      .from("marketing_calendar_events")
+      .insert(normalized);
+
+    if (insertError) {
+      return Response.json({ error: "Supabase sync failed", code: insertError.code }, { status: 500 });
+    }
+
+    return Response.json({ ok: true, count: normalized.length });
+  }
+
+  return Response.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "GET, POST, PUT, DELETE" } });
+});
+
+async function forwardSupabaseCalendar(req, res, url) {
+  if (!["GET", "POST", "PUT", "DELETE"].includes(req.method)) {
+    sendMethodNotAllowed(req, res, ["GET", "POST", "PUT", "DELETE"]);
+    return;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Calendar API")) {
+    return;
+  }
+  if (["POST", "PUT"].includes(req.method) && rejectNonJsonRequest(req, res)) {
+    return;
+  }
+  if (!supabaseUrl || !supabaseSecretKey) {
+    sendJson(req, res, 503, { error: "Supabase is not configured" });
+    return;
+  }
+
+  const headers = new Headers({
+    apikey: supabaseSecretKey,
+    Authorization: `Bearer ${supabaseSecretKey}`,
+  });
+  const init = { method: req.method, headers };
+  if (["POST", "PUT"].includes(req.method)) {
+    headers.set("Content-Type", "application/json");
+    init.body = await readRawBody(req, MAX_JSON_BODY_BYTES);
+  }
+
+  const authRequest = new Request(url.toString(), init);
+  let response;
+  try {
+    response = await supabaseCalendarHandler(authRequest);
+  } catch (error) {
+    const status = error?.status || 500;
+    sendJson(req, res, status, { error: error instanceof Error ? error.message : "Calendar request failed" });
+    return;
+  }
+
+  const body = await response.text();
+
+  setSecurityHeaders(res);
+  setCorsHeaders(req, res);
+  const responseHeaders = {
+    "Content-Type": response.headers.get("content-type") || "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  };
+  const allowHeader = response.headers.get("allow");
+  if (allowHeader) responseHeaders.Allow = allowHeader;
+  res.writeHead(response.status, responseHeaders);
+  res.end(body);
+}
+
 async function forwardSupabaseTodos(req, res, url) {
   if (!["GET", "POST", "DELETE"].includes(req.method)) {
     sendMethodNotAllowed(req, res, ["GET", "POST", "DELETE"]);
@@ -936,6 +1130,362 @@ async function forwardSupabaseTodos(req, res, url) {
   if (allowHeader) responseHeaders.Allow = allowHeader;
   res.writeHead(response.status, responseHeaders);
   res.end(body);
+}
+
+// ── Helpers for new data routes ──────────────────────────────────────────────
+
+function isValidUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+function requireUuid(value, name) {
+  if (!isValidUuid(value)) throw Object.assign(new Error(`Invalid or missing ${name}`), { status: 400 });
+  return value;
+}
+
+function dataApiErrorResponse(req, res, error) {
+  if (error instanceof DbError) {
+    sendJson(req, res, error.status, { error: error.message, code: error.code });
+  } else {
+    sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown error" });
+  }
+}
+
+// Resolve (or lazily create) the default workspace so callers need not supply workspace_id.
+async function resolveWorkspaceId(query) {
+  const wid = query.get("workspace_id");
+  if (wid) {
+    requireUuid(wid, "workspace_id");
+    return wid;
+  }
+  // Auto-provision the default workspace when Supabase is available.
+  const ws = await db.workspaces.upsertDefault();
+  return ws.id;
+}
+
+// ── /api/data/brand-profiles ─────────────────────────────────────────────────
+
+async function handleBrandProfiles(req, res, url) {
+  const idMatch = url.pathname.match(/^\/api\/data\/brand-profiles\/([^/]+)$/);
+  const resourceId = idMatch ? idMatch[1] : null;
+
+  if (resourceId) {
+    requireUuid(resourceId, "id");
+    if (!requirePrivilegedApiAccess(req, res, "Brand profiles API")) return;
+
+    if (req.method === "GET") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.brandProfiles.get(resourceId, workspaceId);
+      if (!row) { sendJson(req, res, 404, { error: "Not found" }); return; }
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "PUT" || req.method === "PATCH") {
+      if (rejectNonJsonRequest(req, res)) return;
+      const body = await readJsonBody(req);
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.brandProfiles.update(resourceId, workspaceId, body);
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      await db.brandProfiles.delete(resourceId, workspaceId);
+      sendJson(req, res, 200, { ok: true });
+      return;
+    }
+
+    sendMethodNotAllowed(req, res, ["GET", "PUT", "PATCH", "DELETE"]);
+    return;
+  }
+
+  if (!requirePrivilegedApiAccess(req, res, "Brand profiles API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const rows = await db.brandProfiles.list(workspaceId);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    if (!body.name || typeof body.name !== "string") {
+      sendJson(req, res, 400, { error: "Missing required field: name" });
+      return;
+    }
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.brandProfiles.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
+}
+
+// ── /api/data/campaigns ───────────────────────────────────────────────────────
+
+async function handleCampaigns(req, res, url) {
+  const idMatch = url.pathname.match(/^\/api\/data\/campaigns\/([^/]+)$/);
+  const resourceId = idMatch ? idMatch[1] : null;
+
+  if (resourceId) {
+    requireUuid(resourceId, "id");
+    if (!requirePrivilegedApiAccess(req, res, "Campaigns API")) return;
+
+    if (req.method === "GET") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.campaigns.get(resourceId, workspaceId);
+      if (!row) { sendJson(req, res, 404, { error: "Not found" }); return; }
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "PUT" || req.method === "PATCH") {
+      if (rejectNonJsonRequest(req, res)) return;
+      const body = await readJsonBody(req);
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.campaigns.update(resourceId, workspaceId, body);
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      await db.campaigns.delete(resourceId, workspaceId);
+      sendJson(req, res, 200, { ok: true });
+      return;
+    }
+
+    sendMethodNotAllowed(req, res, ["GET", "PUT", "PATCH", "DELETE"]);
+    return;
+  }
+
+  if (!requirePrivilegedApiAccess(req, res, "Campaigns API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const rows = await db.campaigns.list(workspaceId);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    if (!body.title || typeof body.title !== "string") {
+      sendJson(req, res, 400, { error: "Missing required field: title" });
+      return;
+    }
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.campaigns.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
+}
+
+// ── /api/data/draft-posts ─────────────────────────────────────────────────────
+
+async function handleDraftPosts(req, res, url) {
+  const idMatch = url.pathname.match(/^\/api\/data\/draft-posts\/([^/]+)$/);
+  const resourceId = idMatch ? idMatch[1] : null;
+
+  if (resourceId) {
+    requireUuid(resourceId, "id");
+    if (!requirePrivilegedApiAccess(req, res, "Draft posts API")) return;
+
+    if (req.method === "GET") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.draftPosts.get(resourceId, workspaceId);
+      if (!row) { sendJson(req, res, 404, { error: "Not found" }); return; }
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "PUT" || req.method === "PATCH") {
+      if (rejectNonJsonRequest(req, res)) return;
+      const body = await readJsonBody(req);
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.draftPosts.update(resourceId, workspaceId, body);
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      await db.draftPosts.delete(resourceId, workspaceId);
+      sendJson(req, res, 200, { ok: true });
+      return;
+    }
+
+    sendMethodNotAllowed(req, res, ["GET", "PUT", "PATCH", "DELETE"]);
+    return;
+  }
+
+  if (!requirePrivilegedApiAccess(req, res, "Draft posts API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const filters = {
+      campaign_id: url.searchParams.get("campaign_id") || undefined,
+      platform: url.searchParams.get("platform") || undefined,
+      status: url.searchParams.get("status") || undefined,
+    };
+    const rows = await db.draftPosts.list(workspaceId, filters);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    const missing = [];
+    if (!body.platform) missing.push("platform");
+    if (!body.text) missing.push("text");
+    if (missing.length) { sendJson(req, res, 400, { error: "Missing required fields", missing }); return; }
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.draftPosts.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
+}
+
+// ── /api/data/scheduled-posts ─────────────────────────────────────────────────
+
+async function handleScheduledPosts(req, res, url) {
+  const idMatch = url.pathname.match(/^\/api\/data\/scheduled-posts\/([^/]+)$/);
+  const resourceId = idMatch ? idMatch[1] : null;
+
+  if (resourceId) {
+    requireUuid(resourceId, "id");
+    if (!requirePrivilegedApiAccess(req, res, "Scheduled posts API")) return;
+
+    if (req.method === "GET") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.scheduledPosts.get(resourceId, workspaceId);
+      if (!row) { sendJson(req, res, 404, { error: "Not found" }); return; }
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "PUT" || req.method === "PATCH") {
+      if (rejectNonJsonRequest(req, res)) return;
+      const body = await readJsonBody(req);
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.scheduledPosts.update(resourceId, workspaceId, body);
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      await db.scheduledPosts.delete(resourceId, workspaceId);
+      sendJson(req, res, 200, { ok: true });
+      return;
+    }
+
+    sendMethodNotAllowed(req, res, ["GET", "PUT", "PATCH", "DELETE"]);
+    return;
+  }
+
+  if (!requirePrivilegedApiAccess(req, res, "Scheduled posts API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const filters = {
+      campaign_id: url.searchParams.get("campaign_id") || undefined,
+      status: url.searchParams.get("status") || undefined,
+    };
+    const rows = await db.scheduledPosts.list(workspaceId, filters);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    const missing = [];
+    if (!body.platform) missing.push("platform");
+    if (!body.text) missing.push("text");
+    if (!body.scheduled_at) missing.push("scheduled_at");
+    if (missing.length) { sendJson(req, res, 400, { error: "Missing required fields", missing }); return; }
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.scheduledPosts.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
+}
+
+// ── /api/data/agent-runs ──────────────────────────────────────────────────────
+
+async function handleAgentRuns(req, res, url) {
+  const idMatch = url.pathname.match(/^\/api\/data\/agent-runs\/([^/]+)$/);
+  const resourceId = idMatch ? idMatch[1] : null;
+
+  if (resourceId) {
+    requireUuid(resourceId, "id");
+    if (!requirePrivilegedApiAccess(req, res, "Agent runs API")) return;
+
+    if (req.method === "GET") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.agentRuns.get(resourceId, workspaceId);
+      if (!row) { sendJson(req, res, 404, { error: "Not found" }); return; }
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "PATCH") {
+      if (rejectNonJsonRequest(req, res)) return;
+      const body = await readJsonBody(req);
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      const row = await db.agentRuns.update(resourceId, workspaceId, body);
+      sendJson(req, res, 200, row);
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const workspaceId = await resolveWorkspaceId(url.searchParams);
+      await db.agentRuns.delete(resourceId, workspaceId);
+      sendJson(req, res, 200, { ok: true });
+      return;
+    }
+
+    sendMethodNotAllowed(req, res, ["GET", "PATCH", "DELETE"]);
+    return;
+  }
+
+  if (!requirePrivilegedApiAccess(req, res, "Agent runs API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const filters = {
+      campaign_id: url.searchParams.get("campaign_id") || undefined,
+      status: url.searchParams.get("status") || undefined,
+    };
+    const rows = await db.agentRuns.list(workspaceId, filters);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.agentRuns.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
 }
 
 function safeStaticPath(pathname) {
@@ -1024,6 +1574,38 @@ export function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/calendar/events" || url.pathname === "/api/calendar/events/sync") {
+    forwardSupabaseCalendar(req, res, url).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown calendar error" });
+    });
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/data/brand-profiles")) {
+    handleBrandProfiles(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/data/campaigns")) {
+    handleCampaigns(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/data/draft-posts")) {
+    handleDraftPosts(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/data/scheduled-posts")) {
+    handleScheduledPosts(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/data/agent-runs")) {
+    handleAgentRuns(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
   if (url.pathname === "/api/agents/run") {
     handleAgentRun(req, res).catch((error) => {
       sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown agent run error" });
@@ -1052,6 +1634,13 @@ export function handleRequest(req, res) {
       agentRunEndpoint: "/api/agents/run",
       integrationsEndpoint: "/api/integrations/status",
       approvalQueueEndpoint: "/api/approval/queue",
+      dataEndpoints: {
+        brandProfiles: "/api/data/brand-profiles",
+        campaigns: "/api/data/campaigns",
+        draftPosts: "/api/data/draft-posts",
+        scheduledPosts: "/api/data/scheduled-posts",
+        agentRuns: "/api/data/agent-runs",
+      },
     });
     return;
   }

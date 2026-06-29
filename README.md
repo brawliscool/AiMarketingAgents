@@ -139,7 +139,41 @@ Tokens are stored in `.data/social-integrations.json` for local development only
 
 ### Supabase configuration
 
-The existing Supabase demo endpoint still uses `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on the backend. Public browser clients should only use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+#### Environment variables
+
+| Variable | Side | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Backend only | Supabase project URL |
+| `SUPABASE_SECRET_KEY` | Backend only | Service role key — **never expose to the frontend** |
+| `VITE_SUPABASE_URL` | Frontend (public) | Supabase project URL for browser client |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | Anon/publishable key for browser client |
+
+Copy `.env.example` to `.env.local` and fill in your Supabase project values. Backend variables are read at server startup and are never sent to the browser. `VITE_*` variables are embedded into the frontend bundle at build time and are publicly visible — use only the anon/publishable key there, never the service role key.
+
+#### Running the SQL migration
+
+1. Open your Supabase project → **SQL Editor → New query**.
+2. Paste the contents of `supabase/schema.sql` and run it.
+3. The migration creates six tables (`workspaces`, `brand_profiles`, `campaigns`, `draft_posts`, `scheduled_posts`, `agent_runs`) with UUID primary keys, foreign keys, `created_at`/`updated_at` timestamps, and indexes on commonly queried fields.
+4. RLS stubs are included at the bottom of the file — uncomment and extend them when you add Supabase Auth.
+
+#### Data API endpoints
+
+The backend exposes CRUD endpoints under `/api/data/` (privileged — localhost or `BACKEND_ADMIN_KEY` required):
+
+| Resource | Endpoint |
+|---|---|
+| Brand profiles | `/api/data/brand-profiles` |
+| Campaigns | `/api/data/campaigns` |
+| Draft posts | `/api/data/draft-posts` |
+| Scheduled posts | `/api/data/scheduled-posts` |
+| Agent runs | `/api/data/agent-runs` |
+
+Each endpoint supports `GET` (list), `POST` (create), `GET /:id`, `PATCH /:id`, and `DELETE /:id`.
+
+#### Local fallback behavior
+
+When Supabase is not configured or the backend is unreachable, the frontend automatically falls back to `localStorage`. Data written to localStorage is keyed under `hiveai.*` and is available on subsequent page loads. A small badge in the UI indicates which storage layer is in use (`Supabase` vs `localStorage`). Once the backend comes back online, reload the page to re-sync from Supabase.
 
 ### Security notes
 
@@ -170,14 +204,14 @@ npm run preview
 - `UI/public/` - static assets
 - `UI/dist/` - production build output
 - `src/social/` - backend social integration service
-- `server.mjs` - backend HTTP server
+- `src/lib/db.js` - backend database layer (Supabase CRUD operations, server-only)
+- `supabase/schema.sql` - SQL migration for all six tables
+- `server.mjs` - Node HTTP backend with API routes
 
 ## Notes
 
-- The current frontend is intentionally polished and minimal in scope.
-- Settings are stored locally in the browser.
+- Settings are stored locally in the browser via `localStorage`.
+- Campaign and other entity data persists to Supabase when available; falls back to `localStorage` when the backend is unreachable.
+- Agent runs are automatically recorded after each successful agent execution.
 - The app is optimized for a dark, premium SaaS presentation.
-
-## Status
-
-This repository currently focuses on the frontend experience and product presentation layer.
+- `SUPABASE_SECRET_KEY` is consumed only by the Node backend and is never exposed to the browser.
