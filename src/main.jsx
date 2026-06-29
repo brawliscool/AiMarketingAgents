@@ -175,9 +175,7 @@ const briefBuilderFields = [
 const publishingAccessFields = [
   { id: "socialPlatform", label: "Social platform", required: true },
   { id: "socialAccountId", label: "Platform account or page ID", required: true },
-  { id: "socialApiKey", label: "Platform API key or access token", type: "password" },
-  { id: "socialLogin", label: "Platform login email or username" },
-  { id: "socialPassword", label: "Platform password", type: "password" },
+  { id: "socialApiKey", label: "Official platform API key or access token", type: "password", required: true },
 ];
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8787";
@@ -537,10 +535,7 @@ function BriefsPage() {
   const socialPlatformSelected = publishingAccessValues.socialPlatform.trim().length > 0;
   const socialAccountSelected = publishingAccessValues.socialAccountId.trim().length > 0;
   const hasSocialApiAccess = publishingAccessValues.socialApiKey.trim().length > 0;
-  const hasSocialLoginAccess =
-    publishingAccessValues.socialLogin.trim().length > 0 &&
-    publishingAccessValues.socialPassword.trim().length > 0;
-  const publishingAccessComplete = socialPlatformSelected && socialAccountSelected && (hasSocialApiAccess || hasSocialLoginAccess);
+  const publishingAccessComplete = socialPlatformSelected && socialAccountSelected && hasSocialApiAccess;
   const builderReady = requiredFieldsComplete && publishingAccessComplete;
 
   const updateBriefField = (fieldId, value) => {
@@ -703,7 +698,7 @@ function BriefsPage() {
                 ? "Ready to hand off and post"
                 : publishingAccessComplete
                   ? "Complete model fields to hand off"
-                  : "Add social API key or login to post"}
+                  : "Add an official social API token to post"}
             </div>
             <MagneticButton
               className={builderReady ? "primary-button" : "secondary-button"}
@@ -804,12 +799,20 @@ function SettingsPage({ settings, onToggle, onSelect }) {
   const { integrations, refresh } = useIntegrationStatus();
 
   const refreshPlatform = async (platform) => {
-    await fetch(`${apiBaseUrl}/api/integrations/${platform}/refresh`, { method: "POST" });
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
     refresh();
   };
 
   const disconnectPlatform = async (platform) => {
-    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, { method: "POST" });
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
     refresh();
   };
 
@@ -1082,7 +1085,11 @@ function IntegrationsPage() {
   };
 
   const disconnect = async (platform) => {
-    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, { method: "POST" });
+    await fetch(`${apiBaseUrl}/api/integrations/${platform}/disconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
     refresh();
   };
 
