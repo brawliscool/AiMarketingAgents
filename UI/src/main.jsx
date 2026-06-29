@@ -215,6 +215,14 @@ function lsWrite(key, data) {
   } catch { /* ignore quota errors */ }
 }
 
+function safeLocalStorageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Browsers can block storage in private or embedded contexts; rendering should continue.
+  }
+}
+
 function lsAdd(key, item) {
   const list = lsRead(key);
   const newItem = { ...item, id: item.id || crypto.randomUUID(), created_at: item.created_at || new Date().toISOString(), updated_at: new Date().toISOString() };
@@ -2372,6 +2380,46 @@ function MobileSummary() {
   );
 }
 
+function AppCrashFallback() {
+  return (
+    <main className="app-shell startup-fallback">
+      <section className="workspace">
+        <div className="panel startup-fallback-panel">
+          <div className="section-kicker">HiveAI</div>
+          <h1>We could not finish loading the dashboard.</h1>
+          <p>Refresh the page to try again. If the issue continues, clear this site&apos;s browser storage and reload.</p>
+          <button type="button" className="primary-button" onClick={() => window.location.reload()}>
+            Reload dashboard
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("HiveAI failed to render", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <AppCrashFallback />;
+    }
+
+    return this.props.children;
+  }
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState("Command center");
   const [roster, setRoster] = useState(loadAgentWorkspace);
@@ -2386,14 +2434,14 @@ function App() {
   });
 
   useEffect(() => {
-    window.localStorage.setItem("aiMarketingAgents.settings", JSON.stringify(settings));
+    safeLocalStorageSet("aiMarketingAgents.settings", JSON.stringify(settings));
     document.body.dataset.compact = settings.compactMode ? "true" : "false";
-    document.body.dataset.tone = settings.tone.toLowerCase();
+    document.body.dataset.tone = String(settings.tone || "Focused").toLowerCase();
   }, [settings]);
 
   useEffect(() => {
     const serializableRoster = roster.map(({ icon, ...agent }) => agent);
-    window.localStorage.setItem(agentWorkspaceStorageKey, JSON.stringify(serializableRoster));
+    safeLocalStorageSet(agentWorkspaceStorageKey, JSON.stringify(serializableRoster));
   }, [roster]);
 
   const updateSetting = (key, value) => {
@@ -2613,4 +2661,8 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  <AppErrorBoundary>
+    <App />
+  </AppErrorBoundary>,
+);
