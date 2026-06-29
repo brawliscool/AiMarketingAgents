@@ -3999,6 +3999,29 @@ img {
   .trend-ai-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .team-chat-hero,
+  .team-chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .team-chat-hero {
+    min-height: auto;
+  }
+
+  .team-roster,
+  .team-actions-panel,
+  .team-thread-panel {
+    min-height: 0;
+  }
+
+  .team-agent-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .team-thread-panel {
+    min-height: min(720px, calc(100dvh - 128px));
+  }
 }
 
 @media (max-width: 720px) {
@@ -4071,6 +4094,134 @@ img {
 
   .trend-actions {
     display: grid;
+  }
+
+  .team-chat-page {
+    gap: 12px;
+  }
+
+  .team-chat-hero {
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .team-chat-hero h1 {
+    margin: 12px 0 10px;
+    font-size: clamp(2.25rem, 12vw, 3.15rem);
+    line-height: 1;
+    letter-spacing: -0.045em;
+  }
+
+  .team-chat-hero p {
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+  .team-chat-status {
+    justify-items: start;
+    width: 100%;
+    padding: 14px;
+  }
+
+  .team-chat-status strong {
+    font-size: 2.35rem;
+  }
+
+  .team-chat-layout {
+    gap: 12px;
+  }
+
+  .team-roster,
+  .team-actions-panel {
+    padding: 14px;
+  }
+
+  .team-agent-list {
+    grid-template-columns: 1fr;
+    max-height: min(52dvh, 430px);
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .team-agent-card {
+    padding: 10px;
+  }
+
+  .team-thread-panel {
+    min-height: min(680px, calc(100dvh - 28px));
+  }
+
+  .team-thread-toolbar {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .team-thread-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .team-thread-actions button {
+    justify-content: center;
+  }
+
+  .team-thread {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .team-empty {
+    min-height: 250px;
+    padding: 20px 8px;
+  }
+
+  .team-message {
+    max-width: 100%;
+  }
+
+  .team-message.agent .team-agent-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .team-message-card {
+    min-width: 0;
+  }
+
+  .team-composer-wrap {
+    padding: 12px;
+  }
+
+  .team-composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .team-composer > svg {
+    display: none;
+  }
+
+  .team-composer textarea {
+    min-height: 54px;
+  }
+
+  .team-composer button {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .mention-menu {
+    bottom: 84px;
+  }
+
+  .mention-menu button {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mention-menu small {
+    grid-column: 2;
   }
 
   .hero-actions {
