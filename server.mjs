@@ -8,7 +8,7 @@ import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 import { db, DbError } from "./src/lib/db.js";
 
 const root = process.cwd();
-const distDir = resolve(root, "dist");
+const distDir = resolve(root, "UI/dist");
 const envPath = resolve(root, ".env.local");
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || "127.0.0.1";

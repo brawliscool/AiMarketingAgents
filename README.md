@@ -190,13 +190,15 @@ npm run preview
 
 ## Project Layout
 
-- `src/main.jsx` - application UI, routing state, and interactive behavior
-- `src/styles.css` - visual system, responsive layout, and motion styling
+- `UI/` - entire frontend application
+- `UI/src/main.jsx` - application UI, routing state, and interactive behavior
+- `UI/src/styles.css` - visual system, responsive layout, and motion styling
+- `UI/public/` - static assets
+- `UI/dist/` - production build output
+- `src/social/` - backend social integration service
 - `src/lib/db.js` - backend database layer (Supabase CRUD operations, server-only)
 - `supabase/schema.sql` - SQL migration for all six tables
 - `server.mjs` - Node HTTP backend with API routes
-- `public/` - static assets
-- `dist/` - production build output
 
 ## Notes
 
