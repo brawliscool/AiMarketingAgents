@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 
 const distDir = resolve("dist");
 const indexPath = resolve(distDir, "index.html");
-const scriptsToLoad = ["mobile-menu.js", "homepage-actions.js"];
+const scriptsToLoad = ["mobile-menu.js", "homepage-actions.js", "agent-builder.js"];
 const staticFilesToCopy = [
   [resolve("mobile-menu.js"), resolve(distDir, "mobile-menu.js")],
   [resolve("public", "homepage-actions.js"), resolve(distDir, "homepage-actions.js")],
+  [resolve("public", "agent-builder.js"), resolve(distDir, "agent-builder.js")],
 ];
 
 for (const [source, target] of staticFilesToCopy) {
