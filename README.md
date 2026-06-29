@@ -85,10 +85,18 @@ The backend listens on `http://127.0.0.1:8787` and exposes:
 - `POST /api/integrations/:platform/disconnect` - removes local token state
 - `POST /api/integrations/:platform/refresh` - refreshes local token metadata when refresh tokens exist
 - `POST /api/integrations/:platform/publish` - accepts a normalized publishing payload
+- `GET /api/approval/queue` - returns content items, owner dashboard metrics, and persistence mode
+- `POST /api/approval/items` - creates a content item and starts the full approval workflow
+- `POST /api/approval/items/:id/actions` - supports `approve`, `reject`, `send_back`, `edit`, `regenerate`, and related actions
+- `POST /api/approval/items/:id/publish` - publishes approved content to selected social integrations
 
 The Agent builder sends the user's model API key and official social publishing token to this endpoint for the current run only. The backend redacts secrets in responses and requires a social platform, platform account/page ID, and API/access token before it will run a posting-capable agent.
 
-By default, the endpoint generates a draft and verifies publishing access without posting live. When `publishLive` is enabled, the backend can publish text posts to a Facebook Page through the Meta Graph API using a Page ID and Page access token. Instagram, TikTok, and other channels still need their own official OAuth/API adapters before live posting is enabled for those platforms. Platform username/password collection is intentionally unsupported; use official OAuth or provider-issued API tokens instead.
+By default, generated content is queued for approval before publication. The approval pipeline is:
+
+Research Agent -> Content Writer -> SEO Review -> Brand Voice Review -> Compliance Check -> Owner Approval -> Scheduled -> Published
+
+When owner approval is complete, `POST /api/approval/items/:id/publish` can publish to selected connected platforms. Platform username/password collection is intentionally unsupported; use official OAuth or provider-issued API tokens instead.
 
 Optional backend environment:
 
@@ -131,7 +139,41 @@ Tokens are stored in `.data/social-integrations.json` for local development only
 
 ### Supabase configuration
 
-The existing Supabase demo endpoint still uses `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on the backend. Public browser clients should only use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+#### Environment variables
+
+| Variable | Side | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Backend only | Supabase project URL |
+| `SUPABASE_SECRET_KEY` | Backend only | Service role key — **never expose to the frontend** |
+| `VITE_SUPABASE_URL` | Frontend (public) | Supabase project URL for browser client |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | Anon/publishable key for browser client |
+
+Copy `.env.example` to `.env.local` and fill in your Supabase project values. Backend variables are read at server startup and are never sent to the browser. `VITE_*` variables are embedded into the frontend bundle at build time and are publicly visible — use only the anon/publishable key there, never the service role key.
+
+#### Running the SQL migration
+
+1. Open your Supabase project → **SQL Editor → New query**.
+2. Paste the contents of `supabase/schema.sql` and run it.
+3. The migration creates six tables (`workspaces`, `brand_profiles`, `campaigns`, `draft_posts`, `scheduled_posts`, `agent_runs`) with UUID primary keys, foreign keys, `created_at`/`updated_at` timestamps, and indexes on commonly queried fields.
+4. RLS stubs are included at the bottom of the file — uncomment and extend them when you add Supabase Auth.
+
+#### Data API endpoints
+
+The backend exposes CRUD endpoints under `/api/data/` (privileged — localhost or `BACKEND_ADMIN_KEY` required):
+
+| Resource | Endpoint |
+|---|---|
+| Brand profiles | `/api/data/brand-profiles` |
+| Campaigns | `/api/data/campaigns` |
+| Draft posts | `/api/data/draft-posts` |
+| Scheduled posts | `/api/data/scheduled-posts` |
+| Agent runs | `/api/data/agent-runs` |
+
+Each endpoint supports `GET` (list), `POST` (create), `GET /:id`, `PATCH /:id`, and `DELETE /:id`.
+
+#### Local fallback behavior
+
+When Supabase is not configured or the backend is unreachable, the frontend automatically falls back to `localStorage`. Data written to localStorage is keyed under `hiveai.*` and is available on subsequent page loads. A small badge in the UI indicates which storage layer is in use (`Supabase` vs `localStorage`). Once the backend comes back online, reload the page to re-sync from Supabase.
 
 ### Security notes
 
@@ -162,14 +204,14 @@ npm run preview
 - `UI/public/` - static assets
 - `UI/dist/` - production build output
 - `src/social/` - backend social integration service
-- `server.mjs` - backend HTTP server
+- `src/lib/db.js` - backend database layer (Supabase CRUD operations, server-only)
+- `supabase/schema.sql` - SQL migration for all six tables
+- `server.mjs` - Node HTTP backend with API routes
 
 ## Notes
 
-- The current frontend is intentionally polished and minimal in scope.
-- Settings are stored locally in the browser.
+- Settings are stored locally in the browser via `localStorage`.
+- Campaign and other entity data persists to Supabase when available; falls back to `localStorage` when the backend is unreachable.
+- Agent runs are automatically recorded after each successful agent execution.
 - The app is optimized for a dark, premium SaaS presentation.
-
-## Status
-
-This repository currently focuses on the frontend experience and product presentation layer.
+- `SUPABASE_SECRET_KEY` is consumed only by the Node backend and is never exposed to the browser.
