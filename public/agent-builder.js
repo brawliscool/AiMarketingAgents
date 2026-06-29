@@ -138,9 +138,15 @@ function fillBrief(plan) {
 
 function renderSummary(panel, plan) {
   const summary = panel.querySelector(".ai-builder-summary");
-  summary.innerHTML = plan.summary
-    .map(([label, value]) => `<span><strong>${label}</strong>${value}</span>`)
-    .join("");
+  summary.replaceChildren(
+    ...plan.summary.map(([label, value]) => {
+      const item = document.createElement("span");
+      const labelNode = document.createElement("strong");
+      labelNode.textContent = label;
+      item.append(labelNode, document.createTextNode(String(value)));
+      return item;
+    }),
+  );
   summary.hidden = false;
 }
 

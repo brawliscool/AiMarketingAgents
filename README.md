@@ -86,16 +86,21 @@ The backend listens on `http://127.0.0.1:8787` and exposes:
 - `POST /api/integrations/:platform/refresh` - refreshes local token metadata when refresh tokens exist
 - `POST /api/integrations/:platform/publish` - accepts a normalized publishing payload
 
-The Agent builder sends the user's model API key and social publishing access to this endpoint for the current run only. The backend redacts secrets in responses and requires a social platform, platform account/page ID, and either a social API/access token or login credentials before it will run a posting-capable agent.
+The Agent builder sends the user's model API key and official social publishing token to this endpoint for the current run only. The backend redacts secrets in responses and requires a social platform, platform account/page ID, and API/access token before it will run a posting-capable agent.
 
-By default, the endpoint generates a draft and verifies publishing access without posting live. When `publishLive` is enabled, the backend can publish text posts to a Facebook Page through the Meta Graph API using a Page ID and Page access token. Instagram, TikTok, and other channels still need their own official OAuth/API adapters before live posting is enabled for those platforms. Username/password values are accepted as access proof for the builder gate but are not used for automated social login.
+By default, the endpoint generates a draft and verifies publishing access without posting live. When `publishLive` is enabled, the backend can publish text posts to a Facebook Page through the Meta Graph API using a Page ID and Page access token. Instagram, TikTok, and other channels still need their own official OAuth/API adapters before live posting is enabled for those platforms. Platform username/password collection is intentionally unsupported; use official OAuth or provider-issued API tokens instead.
 
 Optional backend environment:
 
 ```bash
 OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
 META_GRAPH_API_BASE_URL=https://graph.facebook.com/v25.0
+BACKEND_ADMIN_KEY=generate-at-least-32-random-characters
+TRUST_PROXY_HEADERS=false
+ENABLE_HSTS=false
 ```
+
+Privileged local-development endpoints (`/api/todos` and `/api/integrations/*`) are available only to loopback requests by default. If you expose the backend beyond localhost, set a strong `BACKEND_ADMIN_KEY` and send it as `Authorization: Bearer <key>` or `X-Backend-Admin-Key`; otherwise these endpoints fail closed. Only set `TRUST_PROXY_HEADERS=true` when a trusted reverse proxy controls `X-Forwarded-For`, and enable `ENABLE_HSTS=true` only behind HTTPS.
 
 ### OAuth setup
 
@@ -122,7 +127,7 @@ Developer portals:
 3. Open Integrations and connect a configured platform.
 4. Use Publish Workspace to create a normalized payload with `text`, `title`, `hashtags`, `mediaUrls`, `videoUrl`, `imageUrl`, `subreddit`, `scheduledAt`, `campaignId`, and `agentId`.
 
-Tokens are stored in `.data/social-integrations.json` for local development. Replace `src/social/store.js` with a Supabase-backed adapter when production persistence is ready.
+Tokens are stored in `.data/social-integrations.json` for local development only, behind localhost/admin-key access controls. Replace `src/social/store.js` with a Supabase-backed adapter with per-user ownership, RLS, and encrypted token storage before production persistence is ready.
 
 ### Supabase configuration
 
@@ -131,8 +136,10 @@ The existing Supabase demo endpoint still uses `SUPABASE_URL` and `SUPABASE_SECR
 ### Security notes
 
 - Never commit `.env.local` or `.data/social-integrations.json`.
+- Do not expose `SUPABASE_SECRET_KEY` or local JSON-backed integration endpoints without `BACKEND_ADMIN_KEY`.
 - OAuth state is generated server-side and consumed once during callback validation.
 - Access tokens are redacted from API responses; only fingerprints and metadata are returned.
+- State-changing API requests require trusted origins and `Content-Type: application/json`.
 - Live provider publishing should use each platform's official API terms and review requirements.
 
 ### Build for production

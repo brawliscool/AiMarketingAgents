@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { withSupabase } from "@supabase/server";
 import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 
@@ -15,6 +16,8 @@ const MAX_PUBLISH_BODY_BYTES = 32_000;
 const API_WINDOW_MS = 60_000;
 const API_MAX_REQUESTS = 90;
 const AGENT_MAX_REQUESTS = 12;
+const MAX_RATE_BUCKETS = 5_000;
+const MIN_BACKEND_ADMIN_KEY_LENGTH = 32;
 
 function loadEnvFile() {
   if (!existsSync(envPath)) {
@@ -51,6 +54,8 @@ if (!process.env.SUPABASE_PUBLISHABLE_KEY && process.env.VITE_SUPABASE_PUBLISHAB
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || "";
+const backendAdminKey = process.env.BACKEND_ADMIN_KEY || "";
+const trustProxyHeaders = process.env.TRUST_PROXY_HEADERS === "true";
 const openAiCompatibleBaseUrl = normalizeTrustedBaseUrl(
   process.env.OPENAI_COMPATIBLE_BASE_URL || "https://api.openai.com/v1",
   "https://api.openai.com/v1",
@@ -63,6 +68,7 @@ const metaGraphApiBaseUrl = normalizeTrustedBaseUrl(
 const allowedOrigins = new Set([
   "http://127.0.0.1:5173",
   "http://localhost:5173",
+  `http://${HOST}:${PORT}`,
   ...(process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
@@ -101,6 +107,9 @@ function setSecurityHeaders(res) {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  if (process.env.ENABLE_HSTS === "true") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   res.setHeader(
     "Content-Security-Policy",
     [
@@ -118,6 +127,50 @@ function setSecurityHeaders(res) {
   );
 }
 
+function isUnsafeMethod(method) {
+  return ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+}
+
+function isLoopbackHost(value) {
+  return ["127.0.0.1", "localhost", "::1", "[::1]"].includes(String(value || "").toLowerCase());
+}
+
+function normalizeIpAddress(value) {
+  return String(value || "")
+    .replace(/^::ffff:/, "")
+    .replace(/^\[|\]$/g, "");
+}
+
+function isLoopbackAddress(value) {
+  const address = normalizeIpAddress(value);
+  return address === "::1" || address === "localhost" || address === "127.0.0.1" || address.startsWith("127.");
+}
+
+function isAllowedRequestOrigin(req) {
+  const origin = req.headers.origin;
+  return !origin || allowedOrigins.has(origin);
+}
+
+function hasJsonContentType(req) {
+  return String(req.headers["content-type"] || "").toLowerCase().includes("application/json");
+}
+
+function rejectUnsafeOrigin(req, res) {
+  if (!isUnsafeMethod(req.method) || isAllowedRequestOrigin(req)) {
+    return false;
+  }
+  sendJson(req, res, 403, { error: "Origin is not allowed for state-changing requests" });
+  return true;
+}
+
+function rejectNonJsonRequest(req, res) {
+  if (hasJsonContentType(req)) {
+    return false;
+  }
+  sendJson(req, res, 415, { error: "Content-Type must be application/json" });
+  return true;
+}
+
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.has(origin)) {
@@ -125,7 +178,7 @@ function setCorsHeaders(req, res) {
   }
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Backend-Admin-Key");
   res.setHeader("Access-Control-Max-Age", "600");
 }
 
@@ -151,13 +204,35 @@ function sendMethodNotAllowed(req, res, allowed) {
 }
 
 function clientIp(req) {
-  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return forwarded || req.socket.remoteAddress || "unknown";
+  const remoteAddress = normalizeIpAddress(req.socket.remoteAddress || "unknown");
+  if (trustProxyHeaders && isLoopbackAddress(remoteAddress)) {
+    const forwarded = normalizeIpAddress(String(req.headers["x-forwarded-for"] || "").split(",")[0].trim());
+    return forwarded || remoteAddress;
+  }
+  return remoteAddress;
+}
+
+let lastRateLimitPrune = 0;
+
+function pruneRateBuckets(now) {
+  if (now - lastRateLimitPrune < API_WINDOW_MS && rateBuckets.size <= MAX_RATE_BUCKETS) {
+    return;
+  }
+  lastRateLimitPrune = now;
+  for (const [key, bucket] of rateBuckets.entries()) {
+    if (!bucket?.resetAt || bucket.resetAt <= now) {
+      rateBuckets.delete(key);
+    }
+  }
+  if (rateBuckets.size > MAX_RATE_BUCKETS) {
+    rateBuckets.clear();
+  }
 }
 
 function checkRateLimit(req, scope, limit) {
   const key = `${scope}:${clientIp(req)}`;
   const now = Date.now();
+  pruneRateBuckets(now);
   const bucket = rateBuckets.get(key) || { resetAt: now + API_WINDOW_MS, count: 0 };
   if (bucket.resetAt <= now) {
     bucket.resetAt = now + API_WINDOW_MS;
@@ -166,6 +241,47 @@ function checkRateLimit(req, scope, limit) {
   bucket.count += 1;
   rateBuckets.set(key, bucket);
   return bucket.count <= limit;
+}
+
+function timingSafeTokenEqual(left, right) {
+  if (!left || !right) return false;
+  const leftHash = createHash("sha256").update(left).digest();
+  const rightHash = createHash("sha256").update(right).digest();
+  return timingSafeEqual(leftHash, rightHash);
+}
+
+function requestAdminToken(req) {
+  const headerToken = String(req.headers["x-backend-admin-key"] || "").trim();
+  if (headerToken) return headerToken;
+  const authorization = String(req.headers.authorization || "");
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || "";
+}
+
+function hasConfiguredAdminKey() {
+  return backendAdminKey.length >= MIN_BACKEND_ADMIN_KEY_LENGTH;
+}
+
+function isLocalPrivilegedRequest(req) {
+  return isLoopbackHost(HOST) && isLoopbackAddress(req.socket.remoteAddress);
+}
+
+function hasPrivilegedApiAccess(req) {
+  if (isLocalPrivilegedRequest(req)) {
+    return true;
+  }
+  return hasConfiguredAdminKey() && timingSafeTokenEqual(requestAdminToken(req), backendAdminKey);
+}
+
+function requirePrivilegedApiAccess(req, res, featureName) {
+  if (hasPrivilegedApiAccess(req)) {
+    return true;
+  }
+  const status = hasConfiguredAdminKey() ? 401 : 403;
+  sendJson(req, res, status, {
+    error: `${featureName} requires localhost access or a BACKEND_ADMIN_KEY secret`,
+  });
+  return false;
 }
 
 function readRawBody(req, limit = MAX_JSON_BODY_BYTES) {
@@ -187,8 +303,11 @@ function readRawBody(req, limit = MAX_JSON_BODY_BYTES) {
   });
 }
 
-async function readJsonBody(req, limit = MAX_JSON_BODY_BYTES) {
+async function readJsonBody(req, limit = MAX_JSON_BODY_BYTES, options = {}) {
   const contentType = String(req.headers["content-type"] || "");
+  if (options.requireJson && !contentType.toLowerCase().includes("application/json")) {
+    throw new Error("Content-Type must be application/json");
+  }
   if (contentType && !contentType.includes("application/json")) {
     throw new Error("Content-Type must be application/json");
   }
@@ -459,7 +578,7 @@ async function handleAgentRun(req, res) {
 
   let body;
   try {
-    body = await readJsonBody(req, MAX_JSON_BODY_BYTES);
+    body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
   } catch (error) {
     sendJson(req, res, 400, { error: error instanceof Error ? error.message : "Invalid request body" });
     return;
@@ -500,6 +619,9 @@ async function handleAgentRun(req, res) {
 async function handleIntegrationRoutes(req, res, url) {
   if (!checkRateLimit(req, "integrations", API_MAX_REQUESTS)) {
     sendJson(req, res, 429, { error: "Too many integration requests. Try again shortly." });
+    return true;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Local social integrations")) {
     return true;
   }
 
@@ -546,12 +668,14 @@ async function handleIntegrationRoutes(req, res, url) {
 
     if (action === "disconnect") {
       if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
+      if (rejectNonJsonRequest(req, res)) return true;
       sendJson(req, res, 200, socialService.disconnect(platform));
       return true;
     }
 
     if (action === "refresh") {
       if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
+      if (rejectNonJsonRequest(req, res)) return true;
       socialService.refresh(platform);
       sendJson(req, res, 200, { ok: true, integration: socialService.getStatus(platform) });
       return true;
@@ -559,7 +683,7 @@ async function handleIntegrationRoutes(req, res, url) {
 
     if (action === "publish") {
       if (req.method !== "POST") return sendMethodNotAllowed(req, res, ["POST"]);
-      const body = await readJsonBody(req, MAX_PUBLISH_BODY_BYTES);
+      const body = await readJsonBody(req, MAX_PUBLISH_BODY_BYTES, { requireJson: true });
       const result = socialService.publish(platform, normalizePublishPayload(body));
       sendJson(req, res, result.success ? 202 : 409, result);
       return true;
@@ -634,6 +758,12 @@ const supabaseTodosHandler = withSupabase({ auth: "secret" }, async (req, ctx) =
 async function forwardSupabaseTodos(req, res, url) {
   if (!["GET", "POST", "DELETE"].includes(req.method)) {
     sendMethodNotAllowed(req, res, ["GET", "POST", "DELETE"]);
+    return;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Supabase admin demo API")) {
+    return;
+  }
+  if (req.method === "POST" && rejectNonJsonRequest(req, res)) {
     return;
   }
   if (!supabaseUrl || !supabaseSecretKey) {
@@ -725,7 +855,7 @@ function serveStatic(req, res, url) {
   createReadStream(fullPath).pipe(res);
 }
 
-createServer((req, res) => {
+export function handleRequest(req, res) {
   setSecurityHeaders(res);
   setCorsHeaders(req, res);
 
@@ -736,6 +866,10 @@ createServer((req, res) => {
   }
 
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
+
+  if (url.pathname.startsWith("/api/") && rejectUnsafeOrigin(req, res)) {
+    return;
+  }
 
   if (url.pathname.startsWith("/api/") && !checkRateLimit(req, "api", API_MAX_REQUESTS)) {
     sendJson(req, res, 429, { error: "Too many requests. Try again shortly." });
@@ -779,6 +913,24 @@ createServer((req, res) => {
   }
 
   serveStatic(req, res, url);
-}).listen(PORT, HOST, () => {
-  console.log(`Backend listening on http://${HOST}:${PORT}`);
-});
+}
+
+export function createHiveServer() {
+  return createServer(handleRequest);
+}
+
+export const securityInternals = {
+  clientIp,
+  hasJsonContentType,
+  hasPrivilegedApiAccess,
+  isAllowedRequestOrigin,
+  isLoopbackAddress,
+  isUnsafeMethod,
+  timingSafeTokenEqual,
+};
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  createHiveServer().listen(PORT, HOST, () => {
+    console.log(`Backend listening on http://${HOST}:${PORT}`);
+  });
+}
