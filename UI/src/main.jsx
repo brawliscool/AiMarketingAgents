@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AnimatePresence,
@@ -42,6 +42,7 @@ import {
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
+import { createClient as createSupabaseClient } from "./utils/supabase/client.js";
 import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
 import { discoverTrends } from "./trend-hunter/providers";
@@ -671,32 +672,556 @@ function PageShell({ title, subtitle }) {
   );
 }
 
-function AgentsPage() {
+const agentRosterSeed = [
+  {
+    id: "director",
+    name: "Marketing Director",
+    role: "Strategy, prioritization, and handoffs",
+    description: "Coordinates campaign strategy, prioritizes work, and turns signals into action plans for the rest of the HiveAI crew.",
+    objective: "Keep the Summer Growth Sprint focused on high-intent local business leads.",
+    campaign: "Summer Growth Sprint",
+    task: "Prioritize three acquisition angles for this week and assign next-step briefs.",
+    prompt: "Review current campaign momentum, pick the highest-conviction growth angle, and produce concise assignments for the agent team.",
+    progress: 68,
+    status: "Reviewing",
+    lastOutput: "Recommended shifting budget toward consult-intent search audiences and pausing broad awareness tests.",
+    executionTime: 74,
+    lastRunAt: "2026-06-29T20:42:00.000Z",
+    metrics: { successRate: 94, totalRuns: 18, avgExecutionTime: 82 },
+    icon: Command,
+    active: true,
+    activeActivity: "Mapping the next launch angle and assigning the work.",
+    idleActivity: "Waiting for a new brief before resuming strategy.",
+    logs: ["Loaded campaign metrics", "Ranked active opportunities", "Prepared handoff summary"],
+    history: [
+      { id: "director-seed-1", status: "Complete", output: "Built launch priority matrix for local lead conversion.", executionTime: 81, completedAt: "2026-06-29T18:25:00.000Z" },
+      { id: "director-seed-2", status: "Complete", output: "Assigned research, copy, and analytics follow-ups.", executionTime: 74, completedAt: "2026-06-29T20:42:00.000Z" },
+    ],
+  },
+  {
+    id: "writer",
+    name: "Content Writer",
+    role: "Copy, posts, and launch sequences",
+    description: "Writes conversion-oriented copy for posts, emails, ad tests, and campaign landing pages.",
+    objective: "Draft messaging that turns research insights into polished campaign assets.",
+    campaign: "Summer Growth Sprint",
+    task: "Write a three-touch consult booking sequence for high-intent prospects.",
+    prompt: "Create concise, premium-feeling copy for a local business owner audience. Include a hook, proof point, and direct CTA.",
+    progress: 52,
+    status: "Running",
+    lastOutput: "Drafted two hook directions and an email CTA focused on saved operator time.",
+    executionTime: 63,
+    lastRunAt: "2026-06-29T21:05:00.000Z",
+    metrics: { successRate: 91, totalRuns: 24, avgExecutionTime: 69 },
+    icon: ClipboardText,
+    active: true,
+    activeActivity: "Writing a launch sequence for the new product.",
+    idleActivity: "Paused while waiting for the next prompt.",
+    logs: ["Analyzing audience pain points", "Drafting social proof block", "Preparing final copy variants"],
+    history: [
+      { id: "writer-seed-1", status: "Complete", output: "Generated five launch post hooks for owner-operators.", executionTime: 59, completedAt: "2026-06-29T17:30:00.000Z" },
+      { id: "writer-seed-2", status: "Complete", output: "Finished email opener variants for consult booking.", executionTime: 63, completedAt: "2026-06-29T21:05:00.000Z" },
+    ],
+  },
+  {
+    id: "social",
+    name: "Social Media Manager",
+    role: "Posting schedule and channel timing",
+    description: "Plans social distribution, adapts copy per channel, and keeps the publishing queue moving.",
+    objective: "Keep the campaign posting cadence consistent across priority channels.",
+    campaign: "Summer Growth Sprint",
+    task: "Queue the next seven social posts and flag any missing assets.",
+    prompt: "Build a channel-aware posting plan for the current campaign. Optimize timing, format, and CTA for each platform.",
+    progress: 44,
+    status: "Waiting",
+    lastOutput: "Queued weekday LinkedIn and X posts; waiting on two product screenshots.",
+    executionTime: 51,
+    lastRunAt: "2026-06-29T19:18:00.000Z",
+    metrics: { successRate: 88, totalRuns: 16, avgExecutionTime: 57 },
+    icon: PaperPlaneTilt,
+    active: true,
+    activeActivity: "Scheduling posts for this week’s campaign.",
+    idleActivity: "Standing by for the next content batch.",
+    logs: ["Checked channel calendar", "Detected missing screenshot assets", "Held two posts in queue"],
+    history: [
+      { id: "social-seed-1", status: "Complete", output: "Scheduled four social posts for the launch narrative.", executionTime: 48, completedAt: "2026-06-29T16:10:00.000Z" },
+      { id: "social-seed-2", status: "Waiting", output: "Prepared channel plan and requested product screenshots.", executionTime: 51, completedAt: "2026-06-29T19:18:00.000Z" },
+    ],
+  },
+  {
+    id: "analytics",
+    name: "Analytics Agent",
+    role: "Performance review and insight tracking",
+    description: "Monitors campaign data, identifies performance shifts, and turns metrics into recommendations.",
+    objective: "Find the strongest signal in the current funnel and recommend the next optimization.",
+    campaign: "Consult Conversion Push",
+    task: "Compare channel quality and summarize conversion risks.",
+    prompt: "Review campaign performance by source, conversion stage, and cost pressure. Return key wins, risks, and next actions.",
+    progress: 76,
+    status: "Complete",
+    lastOutput: "Found paid search leads converting 2.1x higher than social retargeting this week.",
+    executionTime: 89,
+    lastRunAt: "2026-06-29T21:18:00.000Z",
+    metrics: { successRate: 96, totalRuns: 31, avgExecutionTime: 84 },
+    icon: ChartLineUp,
+    active: true,
+    activeActivity: "Analyzing campaign performance and trends.",
+    idleActivity: "Idle while it waits for fresh data.",
+    logs: ["Pulled funnel snapshot", "Compared source quality", "Published optimization memo"],
+    history: [
+      { id: "analytics-seed-1", status: "Complete", output: "Flagged CAC relief from search audience refinement.", executionTime: 79, completedAt: "2026-06-29T15:45:00.000Z" },
+      { id: "analytics-seed-2", status: "Complete", output: "Found paid search leads converting 2.1x higher than social retargeting.", executionTime: 89, completedAt: "2026-06-29T21:18:00.000Z" },
+    ],
+  },
+  {
+    id: "video",
+    name: "Video Creator",
+    role: "Short-form script and edit support",
+    description: "Turns campaign strategy into short-form scripts, shot lists, and platform-ready video outlines.",
+    objective: "Create scroll-stopping concepts that support consult booking.",
+    campaign: "Founder Proof Series",
+    task: "Draft a 30-second founder proof script with shot guidance.",
+    prompt: "Write a short-form video concept with a fast hook, credibility beat, product proof, and CTA.",
+    progress: 18,
+    status: "Idle",
+    lastOutput: "No run yet today. Ready to generate the next proof script.",
+    executionTime: 0,
+    lastRunAt: null,
+    metrics: { successRate: 86, totalRuns: 9, avgExecutionTime: 73 },
+    icon: VideoCamera,
+    active: false,
+    activeActivity: "Drafting a short-form video hook and shot list.",
+    idleActivity: "Waiting for script notes and asset approval.",
+    logs: ["Standing by for script notes"],
+    history: [
+      { id: "video-seed-1", status: "Complete", output: "Outlined a testimonial-style product walkthrough video.", executionTime: 73, completedAt: "2026-06-28T22:12:00.000Z" },
+    ],
+  },
+  {
+    id: "seo",
+    name: "SEO Specialist",
+    role: "Search opportunities and content gaps",
+    description: "Finds search demand, content gaps, and practical organic plays for campaign landing pages.",
+    objective: "Identify low-friction organic topics that support paid campaign learning.",
+    campaign: "Consult Conversion Push",
+    task: "Review ranking opportunities for AI marketing automation service pages.",
+    prompt: "Analyze keyword opportunities for the campaign and return priority topics, search intent, and recommended page updates.",
+    progress: 33,
+    status: "Idle",
+    lastOutput: "Clustered service keywords around automation, local lead generation, and AI campaign ops.",
+    executionTime: 66,
+    lastRunAt: "2026-06-29T13:04:00.000Z",
+    metrics: { successRate: 90, totalRuns: 14, avgExecutionTime: 70 },
+    icon: Target,
+    active: false,
+    activeActivity: "Reviewing page structure and ranking opportunities.",
+    idleActivity: "Idle and ready to pick up the next keyword set.",
+    logs: ["Last crawl completed", "Waiting for next keyword set"],
+    history: [
+      { id: "seo-seed-1", status: "Complete", output: "Found seven service-page topic gaps with commercial intent.", executionTime: 66, completedAt: "2026-06-29T13:04:00.000Z" },
+    ],
+  },
+];
+
+const agentStatuses = ["Idle", "Running", "Waiting", "Reviewing", "Complete", "Error"];
+const terminalAgentStatuses = new Set(["Complete", "Error", "Waiting"]);
+const agentWorkspaceStorageKey = "aiMarketingAgents.agentWorkspace.v1";
+
+function agentRunPayload(agent) {
+  return {
+    businessName: "HiveAI",
+    audience: "growth-minded local business owners and marketing operators",
+    offer: agent.objective,
+    campaignGoal: agent.task,
+    brandVoice: "premium, concise, data-informed",
+    platforms: "LinkedIn, X, email",
+    contentType: "agent workspace run",
+    socialPlatform: "draft_only",
+    socialAccountId: `agent-${agent.id}`,
+    socialApiKey: "",
+    publishLive: false,
+  };
+}
+
+function formatTimestamp(value) {
+  if (!value) return "Not run yet";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatExecutionTime(seconds) {
+  if (!seconds) return "0s";
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function createAgentRunRecord(agent, overrides = {}) {
+  const now = overrides.completedAt || new Date().toISOString();
+  return {
+    id: overrides.id || `${agent.id}-${Date.now()}`,
+    agentId: agent.id,
+    agentName: agent.name,
+    campaign: agent.campaign,
+    objective: agent.objective,
+    prompt: agent.prompt,
+    status: overrides.status || "Complete",
+    output: overrides.output || agent.lastOutput,
+    executionTime: overrides.executionTime ?? agent.executionTime ?? 0,
+    completedAt: now,
+    logs: overrides.logs || [],
+    raw: overrides.raw || null,
+  };
+}
+
+function normalizeStoredAgents(storedAgents) {
+  if (!Array.isArray(storedAgents)) return agentRosterSeed;
+  return agentRosterSeed.map((seedAgent) => {
+    const storedAgent = storedAgents.find((agent) => agent.id === seedAgent.id);
+    return storedAgent
+      ? {
+          ...seedAgent,
+          ...storedAgent,
+          icon: seedAgent.icon,
+          history: Array.isArray(storedAgent.history) ? storedAgent.history : seedAgent.history,
+          logs: Array.isArray(storedAgent.logs) ? storedAgent.logs : seedAgent.logs,
+          metrics: { ...seedAgent.metrics, ...(storedAgent.metrics || {}) },
+        }
+      : seedAgent;
+  });
+}
+
+function loadAgentWorkspace() {
+  if (typeof window === "undefined") return agentRosterSeed;
+  try {
+    const stored = window.localStorage.getItem(agentWorkspaceStorageKey);
+    return stored ? normalizeStoredAgents(JSON.parse(stored)) : agentRosterSeed;
+  } catch {
+    return agentRosterSeed;
+  }
+}
+
+async function saveAgentRunToSupabase(run) {
+  try {
+    const supabase = createSupabaseClient();
+    const { error } = await supabase.from("agent_runs").insert({
+      agent_id: run.agentId,
+      agent_name: run.agentName,
+      campaign: run.campaign,
+      objective: run.objective,
+      prompt: run.prompt,
+      status: run.status,
+      output: run.output,
+      execution_time: run.executionTime,
+      completed_at: run.completedAt,
+      logs: run.logs,
+      metadata: run.raw,
+    });
+    return { saved: !error, error };
+  } catch (error) {
+    return { saved: false, error };
+  }
+}
+
+function AgentWorkspaceCard({ agent, onOpen, onRun, onStop, onRetry, onClear }) {
+  const Icon = agent.icon;
+  const isRunning = agent.status === "Running";
+  const isWaiting = agent.status === "Waiting";
+  const statusClass = agent.status.toLowerCase();
+
+  return (
+    <motion.article
+      className={`agent-entry workspace-agent-card ${statusClass}`}
+      variants={itemVariants}
+      whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.34)" }}
+      layout
+      onClick={() => onOpen(agent.id)}
+    >
+      <span className={`agent-led ${isRunning || agent.active ? "active" : "inactive"}`} aria-hidden="true" />
+      <div className="agent-entry-icon">
+        <Icon size={22} />
+      </div>
+
+      <div className="agent-entry-copy">
+        <div className="agent-entry-top">
+          <div className="agent-entry-name">
+            <h3>{agent.name}</h3>
+            <span className={`agent-state ${statusClass}`}>{agent.status}</span>
+          </div>
+          <button className="agent-open-link" type="button" onClick={() => onOpen(agent.id)}>
+            View details
+          </button>
+        </div>
+
+        <p className="agent-role">{agent.role}</p>
+        <div className="agent-work-meta">
+          <span>Task</span>
+          <strong>{agent.task}</strong>
+        </div>
+        <div className="agent-work-meta">
+          <span>Campaign</span>
+          <strong>{agent.campaign}</strong>
+        </div>
+        <div className="agent-progress-row">
+          <span>{agent.progress}%</span>
+          <div className="agent-progress-track">
+            <motion.i initial={{ width: 0 }} animate={{ width: `${agent.progress}%` }} transition={spring} />
+          </div>
+        </div>
+        <div className="agent-output-preview">{agent.lastOutput}</div>
+        <div className="agent-timing-row">
+          <span>{formatExecutionTime(agent.executionTime)}</span>
+          <span>{formatTimestamp(agent.lastRunAt)}</span>
+        </div>
+
+        <div className="agent-entry-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="agent-action start" onClick={() => onRun(agent.id)} disabled={isRunning}>
+            <Play size={14} weight="fill" />
+            Run
+          </button>
+          <button type="button" className="agent-action stop" onClick={() => onStop(agent.id)} disabled={!isRunning && !isWaiting}>
+            <Square size={14} weight="fill" />
+            Stop
+          </button>
+          <button type="button" className="agent-action" onClick={() => onRetry(agent.id)} disabled={isRunning || agent.history.length === 0}>
+            Retry
+          </button>
+          <button type="button" className="agent-action" onClick={() => onClear(agent.id)} disabled={agent.history.length === 0}>
+            Clear
+          </button>
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
+function AgentDetailModal({ agent, onClose, onRun, onStop, onRetry, onClear }) {
+  if (!agent) return null;
+  const Icon = agent.icon;
+  const isRunning = agent.status === "Running";
+
+  return (
+    <AnimatePresence>
+      <motion.div className="agent-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+        <motion.section
+          className="agent-detail-modal"
+          initial={{ opacity: 0, y: 28, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 18, scale: 0.98 }}
+          transition={spring}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="agent-detail-header">
+            <div className="agent-detail-title">
+              <div className="agent-entry-icon">
+                <Icon size={24} />
+              </div>
+              <div>
+                <span className="section-kicker">Agent detail</span>
+                <h2>{agent.name}</h2>
+                <p>{agent.description}</p>
+              </div>
+            </div>
+            <button className="icon-button" type="button" onClick={onClose} aria-label="Close agent details">
+              x
+            </button>
+          </div>
+
+          <div className="agent-detail-actions">
+            <MagneticButton className="primary-button" type="button" onClick={() => onRun(agent.id)} disabled={isRunning}>
+              <Play size={16} weight="fill" />
+              Run Agent Now
+            </MagneticButton>
+            <button className="secondary-button" type="button" onClick={() => onStop(agent.id)} disabled={!isRunning}>
+              <Square size={16} weight="fill" />
+              Stop Agent
+            </button>
+            <button className="secondary-button" type="button" onClick={() => onRetry(agent.id)} disabled={isRunning || agent.history.length === 0}>
+              Retry Last Run
+            </button>
+            <button className="secondary-button danger" type="button" onClick={() => onClear(agent.id)} disabled={agent.history.length === 0}>
+              Clear History
+            </button>
+          </div>
+
+          <div className="agent-detail-grid">
+            <div className="agent-detail-card span-2">
+              <span>Current objective</span>
+              <strong>{agent.objective}</strong>
+              <p>{agent.task}</p>
+            </div>
+            <div className="agent-detail-card">
+              <span>Status</span>
+              <strong>{agent.status}</strong>
+              <p>{agent.progress}% complete</p>
+            </div>
+            <div className="agent-detail-card">
+              <span>Assigned campaign</span>
+              <strong>{agent.campaign}</strong>
+              <p>Last run {formatTimestamp(agent.lastRunAt)}</p>
+            </div>
+            <div className="agent-detail-card span-2">
+              <span>Current prompt</span>
+              <p>{agent.prompt}</p>
+            </div>
+            <div className="agent-detail-card">
+              <span>Performance metrics</span>
+              <strong>{agent.metrics.successRate}% success</strong>
+              <p>{agent.metrics.totalRuns} runs · {formatExecutionTime(agent.metrics.avgExecutionTime)} avg</p>
+            </div>
+            <div className="agent-detail-card">
+              <span>Last output</span>
+              <p>{agent.lastOutput}</p>
+            </div>
+          </div>
+
+          <div className="agent-detail-columns">
+            <div className="agent-detail-card">
+              <span>Recent outputs</span>
+              <div className="agent-history-list">
+                {agent.history.slice(0, 4).map((run) => (
+                  <div className="agent-history-item" key={run.id}>
+                    <strong>{run.output}</strong>
+                    <span>{run.status} · {formatExecutionTime(run.executionTime)} · {formatTimestamp(run.completedAt)}</span>
+                  </div>
+                ))}
+                {agent.history.length === 0 && <p>No saved runs yet.</p>}
+              </div>
+            </div>
+            <div className="agent-detail-card">
+              <span>Execution logs</span>
+              <div className="agent-log-list">
+                {agent.logs.map((log, index) => (
+                  <code key={`${log}-${index}`}>{log}</code>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.section>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function AgentsPage({ roster, onRunAgent, onStopAgent, onRetryAgent, onClearAgentHistory }) {
+  const [selectedAgentId, setSelectedAgentId] = useState(null);
+  const selectedAgent = roster.find((agent) => agent.id === selectedAgentId);
+  const activeCount = roster.filter((agent) => agent.status === "Running" || agent.status === "Reviewing").length;
+  const completedRuns = roster.flatMap((agent) => agent.history).filter((run) => run.status === "Complete");
+  const failedRuns = roster.flatMap((agent) => agent.history).filter((run) => run.status === "Error");
+  const allRuns = roster.flatMap((agent) => agent.history);
+  const averageExecutionTime = allRuns.length
+    ? Math.round(allRuns.reduce((total, run) => total + (run.executionTime || 0), 0) / allRuns.length)
+    : 0;
+  const waitingAgents = roster.filter((agent) => agent.status === "Waiting");
+  const recentRuns = [...allRuns].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).slice(0, 5);
+  const activityFeed = roster
+    .map((agent) => ({
+      id: `${agent.id}-${agent.status}`,
+      agent: agent.name,
+      status: agent.status,
+      text: agent.status === "Running" ? agent.activeActivity : agent.lastOutput,
+      timestamp: agent.lastRunAt,
+    }))
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
   return (
     <div className="agents-page">
       <MotionPanel className="panel agents-hero">
         <div>
           <div className="section-kicker">Agents</div>
-          <h1>Agents</h1>
-          <p>Agents that are actually running will appear here once they are connected to backend run data.</p>
+          <h1>Agent workspace</h1>
+          <p>Run real marketing workers with objectives, prompts, execution status, saved history, and campaign-level performance.</p>
         </div>
-        <div className="agents-summary">
-          <strong>0</strong>
-          <span>live agents</span>
+        <div className="agents-summary-grid">
+          <div className="agents-summary">
+            <strong>{activeCount}</strong>
+            <span>active now</span>
+          </div>
+          <div className="agents-summary">
+            <strong>{formatExecutionTime(averageExecutionTime)}</strong>
+            <span>avg execution</span>
+          </div>
+          <div className="agents-summary">
+            <strong>{completedRuns.length}/{failedRuns.length}</strong>
+            <span>success / failure</span>
+          </div>
         </div>
       </MotionPanel>
+
+      <motion.div className="agent-dashboard-grid" variants={{ animate: { transition: { staggerChildren: 0.07 } } }}>
+        <MotionPanel className="panel agent-dashboard-card">
+          <div className="panel-title"><h2>Live activity feed</h2><span>stream</span></div>
+          <div className="activity-feed">
+            {activityFeed.map((item) => (
+              <div className="activity-feed-item" key={item.id}>
+                <span className={`agent-led ${item.status === "Running" ? "active" : "inactive"}`} />
+                <div>
+                  <strong>{item.agent}</strong>
+                  <p>{item.text}</p>
+                </div>
+                <small>{item.status}</small>
+              </div>
+            ))}
+          </div>
+        </MotionPanel>
+        <MotionPanel className="panel agent-dashboard-card">
+          <div className="panel-title"><h2>Recently completed jobs</h2><span>{completedRuns.length}</span></div>
+          <div className="compact-run-list">
+            {recentRuns.map((run) => (
+              <div key={run.id}>
+                <strong>{run.agentName}</strong>
+                <span>{run.status} · {formatExecutionTime(run.executionTime)}</span>
+              </div>
+            ))}
+          </div>
+        </MotionPanel>
+        <MotionPanel className="panel agent-dashboard-card">
+          <div className="panel-title"><h2>Waiting queue</h2><span>{waitingAgents.length}</span></div>
+          <div className="compact-run-list">
+            {waitingAgents.length === 0 && <p className="agent-empty-state">No agents waiting.</p>}
+            {waitingAgents.map((agent) => (
+              <div key={agent.id}>
+                <strong>{agent.name}</strong>
+                <span>{agent.task}</span>
+              </div>
+            ))}
+          </div>
+        </MotionPanel>
+      </motion.div>
 
       <MotionPanel className="panel agents-board">
         <div className="panel-title">
-          <h2>Live agent roster</h2>
-          <span>Waiting for data</span>
+          <h2>Marketing agent roster</h2>
+          <span>{agentStatuses.join(" · ")}</span>
         </div>
 
-        <div style={{ padding: "2rem", textAlign: "center", opacity: 0.6 }}>
-          <UsersThree size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
-          <p>No live agents are running right now.</p>
-        </div>
+        <motion.div className="agents-list" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
+          {roster.map((agent) => (
+            <AgentWorkspaceCard
+              agent={agent}
+              key={agent.id}
+              onOpen={setSelectedAgentId}
+              onRun={onRunAgent}
+              onStop={onStopAgent}
+              onRetry={onRetryAgent}
+              onClear={onClearAgentHistory}
+            />
+          ))}
+        </motion.div>
       </MotionPanel>
+
+      <AgentDetailModal
+        agent={selectedAgent}
+        onClose={() => setSelectedAgentId(null)}
+        onRun={onRunAgent}
+        onStop={onStopAgent}
+        onRetry={onRetryAgent}
+        onClear={onClearAgentHistory}
+      />
     </div>
   );
 }
@@ -1849,6 +2374,7 @@ function MobileSummary() {
 
 function App() {
   const [currentPage, setCurrentPage] = useState("Command center");
+  const [roster, setRoster] = useState(loadAgentWorkspace);
   const [settings, setSettings] = useState(() => {
     if (typeof window === "undefined") return { ...defaultSettings, tone: "Focused" };
     try {
@@ -1865,12 +2391,145 @@ function App() {
     document.body.dataset.tone = settings.tone.toLowerCase();
   }, [settings]);
 
+  useEffect(() => {
+    const serializableRoster = roster.map(({ icon, ...agent }) => agent);
+    window.localStorage.setItem(agentWorkspaceStorageKey, JSON.stringify(serializableRoster));
+  }, [roster]);
+
   const updateSetting = (key, value) => {
     setSettings((current) => ({ ...current, [key]: value }));
   };
 
   const toggleSetting = (key) => {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const setAgentActive = (id, nextActive) => {
+    setRoster((current) =>
+      current.map((agent) =>
+        agent.id === id
+          ? {
+              ...agent,
+              active: nextActive,
+            }
+          : agent,
+      ),
+    );
+  };
+
+  const updateAgent = (id, updater) => {
+    setRoster((current) => current.map((agent) => (agent.id === id ? updater(agent) : agent)));
+  };
+
+  const finishAgentRun = async (agentId, startedAt, responseData, error = null) => {
+    let runToSave = null;
+    const completedAt = new Date().toISOString();
+    const executionTime = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+
+    setRoster((current) =>
+      current.map((agent) => {
+        if (agent.id !== agentId) return agent;
+        const output = error
+          ? error.message || "Agent run failed."
+          : responseData?.draft || responseData?.publishing?.note || "Agent completed the run and saved the output.";
+        const status = error ? "Error" : responseData?.ok === false ? "Reviewing" : "Complete";
+        const run = createAgentRunRecord(agent, {
+          id: responseData?.runId || `${agent.id}-${Date.now()}`,
+          status,
+          output,
+          executionTime,
+          completedAt,
+          logs: [
+            `Started ${formatTimestamp(new Date(startedAt).toISOString())}`,
+            error ? `Error: ${output}` : "Received response from /api/agents/run",
+            status === "Reviewing" ? "Publishing needs review" : `Marked ${status.toLowerCase()}`,
+          ],
+          raw: responseData,
+        });
+        runToSave = run;
+        const nextHistory = [run, ...agent.history].slice(0, 20);
+        const successfulRuns = nextHistory.filter((item) => item.status !== "Error").length;
+        const avgExecution = Math.round(nextHistory.reduce((total, item) => total + (item.executionTime || 0), 0) / nextHistory.length);
+
+        return {
+          ...agent,
+          active: status === "Reviewing",
+          status,
+          progress: status === "Complete" ? 100 : status === "Reviewing" ? 88 : agent.progress,
+          lastOutput: output,
+          executionTime,
+          lastRunAt: completedAt,
+          history: nextHistory,
+          logs: run.logs,
+          metrics: {
+            ...agent.metrics,
+            totalRuns: nextHistory.length,
+            successRate: Math.round((successfulRuns / nextHistory.length) * 100),
+            avgExecutionTime: avgExecution,
+          },
+        };
+      }),
+    );
+
+    if (runToSave && terminalAgentStatuses.has(runToSave.status)) {
+      await saveAgentRunToSupabase(runToSave);
+    }
+  };
+
+  const runAgent = async (agentId) => {
+    const agent = roster.find((item) => item.id === agentId);
+    if (!agent || agent.status === "Running") return;
+
+    const startedAt = Date.now();
+    updateAgent(agentId, (currentAgent) => ({
+      ...currentAgent,
+      active: true,
+      status: "Running",
+      progress: Math.max(12, Math.min(currentAgent.progress, 72)),
+      logs: [`Started ${formatTimestamp(new Date(startedAt).toISOString())}`, "Calling /api/agents/run"],
+    }));
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/agents/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentRunPayload(agent)),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "Agent run failed");
+      }
+      await finishAgentRun(agentId, startedAt, data);
+    } catch (error) {
+      await finishAgentRun(agentId, startedAt, null, error instanceof Error ? error : new Error("Agent run failed"));
+    }
+  };
+
+  const stopAgent = (agentId) => {
+    updateAgent(agentId, (agent) => ({
+      ...agent,
+      active: false,
+      status: "Waiting",
+      progress: Math.max(agent.progress, 40),
+      lastOutput: "Run stopped by operator. Agent is waiting for the next command.",
+      logs: ["Stop Agent requested", "Marked waiting for operator review"],
+    }));
+  };
+
+  const retryAgent = (agentId) => {
+    runAgent(agentId);
+  };
+
+  const clearAgentHistory = (agentId) => {
+    updateAgent(agentId, (agent) => ({
+      ...agent,
+      history: [],
+      lastOutput: "History cleared. Ready for the next run.",
+      lastRunAt: null,
+      executionTime: 0,
+      metrics: { ...agent.metrics, totalRuns: 0 },
+      logs: ["Run history cleared locally"],
+    }));
   };
 
   const pageContent = {
@@ -1913,7 +2572,16 @@ function App() {
     "Trend Hunter": <TrendHunterPage />,
     "AI Team Chat": <TeamChatPage />,
     Briefs: <BriefsPage />,
-    Agents: <AgentsPage />,
+    Agents: (
+      <AgentsPage
+        roster={roster}
+        onSetAgentActive={setAgentActive}
+        onRunAgent={runAgent}
+        onStopAgent={stopAgent}
+        onRetryAgent={retryAgent}
+        onClearAgentHistory={clearAgentHistory}
+      />
+    ),
     Campaigns: <CampaignsPage />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <MarketingCalendarPage />,
