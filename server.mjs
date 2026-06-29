@@ -4,6 +4,8 @@ import { extname, resolve, sep } from "node:path";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { withSupabase } from "@supabase/server";
+import { createApprovalStore } from "./src/approval/store.js";
+import { createApprovalQueueService } from "./src/approval/service.js";
 import { parsePlatformOrThrow, socialService } from "./src/social/service.js";
 import { db, DbError } from "./src/lib/db.js";
 
@@ -17,6 +19,7 @@ const MAX_PUBLISH_BODY_BYTES = 32_000;
 const API_WINDOW_MS = 60_000;
 const API_MAX_REQUESTS = 90;
 const AGENT_MAX_REQUESTS = 12;
+const TEAM_CHAT_MAX_REQUESTS = 24;
 const MAX_RATE_BUCKETS = 5_000;
 const MIN_BACKEND_ADMIN_KEY_LENGTH = 32;
 
@@ -88,6 +91,8 @@ const mimeTypes = {
 };
 
 const rateBuckets = new Map();
+const approvalStore = createApprovalStore({ supabaseUrl, supabaseSecretKey });
+const approvalQueue = createApprovalQueueService(approvalStore);
 
 function normalizeTrustedBaseUrl(value, fallback) {
   try {
@@ -601,7 +606,31 @@ async function handleAgentRun(req, res) {
     return;
   }
 
-  const publishResult = await publishDraft(values, draft.content);
+  const queueItem = await approvalQueue.create({
+    content: {
+      text: draft.content,
+      title: draft.content.split(/\r?\n/)[0]?.slice(0, 120) || "Generated draft",
+      hashtags: [],
+      mediaUrls: [],
+      videoUrl: "",
+      imageUrl: "",
+      subreddit: "",
+      scheduledAt: values.postingSchedule || "",
+      campaignId: "agent-run",
+      agentId: "Content Writer",
+    },
+  });
+  const publishResult = values.publishLive
+    ? {
+        ok: false,
+        status: "approval_required",
+        note: "Generated content was queued for approval. Complete approvals before publishing.",
+      }
+    : {
+        ok: true,
+        status: "queued_for_approval",
+        note: "Draft generated and queued for approval.",
+      };
 
   sendJson(req, res, 200, {
     ok: publishResult.ok,
@@ -609,11 +638,252 @@ async function handleAgentRun(req, res) {
     model: draft.model,
     draft: draft.content,
     usage: draft.usage,
+    approvalQueueItemId: queueItem.id,
     publishing: buildPublishingResult(values, publishResult),
     secrets: {
       modelApiKey: "received_redacted",
       socialApiKey: values.socialApiKey ? "received_redacted" : "not_provided",
     },
+  });
+}
+
+const teamAgents = [
+  {
+    id: "marketing-director",
+    name: "Marketing Director",
+    role: "Strategy lead",
+    specialty: "Turns user goals into strategy and assigns next steps.",
+    triggers: ["strategy", "campaign", "plan", "goal", "launch", "team", "everyone", "whole team"],
+    actions: ["Define campaign objective", "Assign owners", "Prioritize next move"],
+  },
+  {
+    id: "research-agent",
+    name: "Research Agent",
+    role: "Audience and market research",
+    specialty: "Finds audience pain points, competitor angles, and market insights.",
+    triggers: ["research", "audience", "pain", "competitor", "market", "insight"],
+    actions: ["Validate audience pain points", "Compare competitor angles", "List assumptions"],
+  },
+  {
+    id: "copywriter",
+    name: "Copywriter",
+    role: "Conversion copy",
+    specialty: "Writes captions, hooks, emails, and ad copy.",
+    triggers: ["copy", "caption", "hook", "email", "ad", "post", "content"],
+    actions: ["Draft hooks", "Write ad variants", "Tighten CTA"],
+  },
+  {
+    id: "seo-agent",
+    name: "SEO Agent",
+    role: "Search growth",
+    specialty: "Suggests keywords, blog ideas, and search improvements.",
+    triggers: ["seo", "keyword", "blog", "search", "rank"],
+    actions: ["Map search intent", "Suggest keywords", "Outline blog topics"],
+  },
+  {
+    id: "designer",
+    name: "Designer",
+    role: "Creative direction",
+    specialty: "Suggests visuals, brand style, image prompts, and creative direction.",
+    triggers: ["design", "visual", "brand", "image", "creative", "style", "content"],
+    actions: ["Define visual direction", "Draft image prompt", "Clarify brand system"],
+  },
+  {
+    id: "video-agent",
+    name: "Video Agent",
+    role: "Short-form video",
+    specialty: "Creates short-form video scripts, shot lists, hooks, and captions.",
+    triggers: ["video", "script", "reel", "tiktok", "shot", "short-form"],
+    actions: ["Write video hook", "Create shot list", "Draft caption"],
+  },
+  {
+    id: "analytics-agent",
+    name: "Analytics Agent",
+    role: "Performance optimization",
+    specialty: "Reviews performance metrics and recommends optimizations.",
+    triggers: ["analytics", "metrics", "performance", "optimize", "conversion", "ctr", "cpc"],
+    actions: ["Review supplied metrics", "Flag missing data", "Recommend test"],
+  },
+  {
+    id: "sales-agent",
+    name: "Sales Agent",
+    role: "Lead conversion",
+    specialty: "Handles lead replies, objections, follow-ups, and booking suggestions.",
+    triggers: ["sales", "lead", "objection", "reply", "follow-up", "booking", "book"],
+    actions: ["Draft lead reply", "Handle objection", "Suggest booking CTA"],
+  },
+  {
+    id: "calendar-agent",
+    name: "Calendar Agent",
+    role: "Content planning",
+    specialty: "Turns ideas into scheduled content plans.",
+    triggers: ["calendar", "schedule", "plan", "weekly", "month", "content calendar"],
+    actions: ["Sequence content", "Set publishing cadence", "Identify calendar gaps"],
+  },
+];
+
+function findTeamAgent(agentId) {
+  return teamAgents.find((agent) => agent.id === agentId);
+}
+
+function mentionedTeamAgents(message, selectedIds) {
+  const normalized = message.toLowerCase();
+  return teamAgents.filter((agent) => {
+    if (!selectedIds.includes(agent.id)) return false;
+    const compactName = agent.name.toLowerCase().replace(/\s+/g, "");
+    return normalized.includes(`@${agent.id}`) || normalized.includes(`@${agent.name.toLowerCase()}`) || normalized.includes(`@${compactName}`);
+  });
+}
+
+function selectTeamAgents(message, selectedAgents) {
+  const selectedIds = Array.isArray(selectedAgents) && selectedAgents.length
+    ? selectedAgents.filter((id) => findTeamAgent(id))
+    : teamAgents.map((agent) => agent.id);
+  const mentioned = mentionedTeamAgents(message, selectedIds);
+  if (mentioned.length) return mentioned;
+
+  const normalized = message.toLowerCase();
+  if (/\b(everyone|whole team|all agents|team)\b/.test(normalized)) {
+    return selectedIds.map(findTeamAgent).filter(Boolean);
+  }
+
+  const matched = teamAgents.filter((agent) => (
+    selectedIds.includes(agent.id) && agent.triggers.some((trigger) => normalized.includes(trigger))
+  ));
+  if (matched.length) {
+    const needsDirector = /\b(strategy|campaign|launch|goal|plan)\b/.test(normalized);
+    const withDirector = needsDirector && !matched.some((agent) => agent.id === "marketing-director")
+      ? [findTeamAgent("marketing-director"), ...matched]
+      : matched;
+    return withDirector.filter(Boolean).slice(0, 4);
+  }
+
+  return [findTeamAgent("marketing-director")].filter((agent) => agent && selectedIds.includes(agent.id));
+}
+
+function hasAnalyticsNumbers(message) {
+  return /(\d+[%$]?)|\b(ctr|cpc|cpa|roas|cac|conversion rate|impressions|clicks|leads)\b/i.test(message);
+}
+
+function buildDeterministicAgentResponse(agent, message, context) {
+  const assumptions = [];
+  if (!context?.brandProfileContext?.voice) assumptions.push("brand voice is not fully configured");
+  if (!context?.campaignContext?.goal && /campaign|launch|strategy/i.test(message)) assumptions.push("campaign goal needs confirmation");
+  const assumptionText = assumptions.length ? `Assumptions: ${assumptions.join("; ")}. ` : "";
+  const analyticsCaution = agent.id === "analytics-agent" && !hasAnalyticsNumbers(message)
+    ? "I will not invent performance numbers; share CTR, CPC, conversion rate, spend, or lead quality data for a quantified read. "
+    : "";
+
+  const playbooks = {
+    "marketing-director": `I would turn this into a focused brief: define the business outcome, choose one primary audience, assign Research to validate pain points, Copywriter to draft the offer narrative, Designer/Video to create assets, and Calendar to sequence distribution. ${assumptionText}Next step: write a one-sentence goal and one measurable success signal.`,
+    "research-agent": `I would start by mapping the buyer's current pain, desired outcome, objections, and competitor alternatives. ${assumptionText}Practical research angles: review customer calls, competitor landing pages, Reddit/LinkedIn language, and objections from recent leads.`,
+    copywriter: `I would frame the copy around a sharp problem, proof point, and low-friction CTA. ${assumptionText}Draft direction: lead with the costly pain, show the specific outcome, then offer one clear next step rather than multiple asks.`,
+    "seo-agent": `I would target intent clusters before keywords: problem-aware searches, solution comparisons, and buying-stage terms. ${assumptionText}Start with blog ideas that answer objections, then add internal links to campaign and offer pages.`,
+    designer: `I would keep the visual system premium and direct: dark contrast, one bold proof point, human/product context, and a clear CTA zone. ${assumptionText}Image prompt direction: cinematic blue-gray marketing command center, focused operator, crisp dashboard signals, premium SaaS lighting.`,
+    "video-agent": `I would use a three-beat short-form structure: hook the pain in 2 seconds, show the mechanism, then close with one action. ${assumptionText}Shot list: problem text overlay, quick product/workflow cut, proof or outcome card, CTA end frame.`,
+    "analytics-agent": `${analyticsCaution}I would evaluate the funnel by separating attention metrics from conversion metrics: hook rate, click quality, landing conversion, and booked-call rate. ${assumptionText}Optimization path: change one variable per test and document the baseline before declaring a winner.`,
+    "sales-agent": `I would respond with empathy, clarify the buying trigger, handle the likely objection, and move toward a calendar step. ${assumptionText}Follow-up pattern: acknowledge concern, restate outcome, share proof, ask a simple booking question.`,
+    "calendar-agent": `I would sequence this as a campaign rhythm: awareness post, proof post, objection post, direct offer, reminder, and recap. ${assumptionText}Keep the calendar realistic by batching creation and leaving review space before publish dates.`,
+  };
+
+  return {
+    agentId: agent.id,
+    agentName: agent.name,
+    role: agent.role,
+    message: `${agent.specialty} ${playbooks[agent.id]}`,
+    suggestedActions: agent.actions,
+    confidence: assumptions.length ? 0.78 : 0.88,
+  };
+}
+
+async function maybeGenerateTeamChatWithModel(body, routedAgents) {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_COMPATIBLE_API_KEY || "";
+  if (!apiKey) return null;
+
+  const { response, data } = await fetchJsonWithTimeout(`${openAiCompatibleBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.TEAM_CHAT_MODEL || "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are HiveAI's multi-agent marketing team. Return JSON with a responses array. Each response must include agentId, agentName, role, message, suggestedActions, confidence. Do not expose secrets. Do not invent analytics numbers. Clearly mark assumptions. Keep responses practical and business-focused.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            message: cleanText(body.message, 8_000),
+            routedAgents,
+            workspaceContext: body.workspaceContext || {},
+            brandProfileContext: body.brandProfileContext || {},
+            campaignContext: body.campaignContext || {},
+            chatHistory: Array.isArray(body.chatHistory) ? body.chatHistory.slice(-12) : [],
+          }),
+        },
+      ],
+      temperature: 0.65,
+    }),
+  }, 24_000);
+
+  if (!response.ok) return null;
+  try {
+    const parsed = JSON.parse(data?.choices?.[0]?.message?.content || "{}");
+    if (!Array.isArray(parsed.responses)) return null;
+    return parsed.responses
+      .filter((item) => routedAgents.some((agent) => agent.id === item.agentId))
+      .map((item) => ({
+        agentId: cleanText(item.agentId, 120),
+        agentName: cleanText(item.agentName, 120),
+        role: cleanText(item.role, 120),
+        message: cleanText(item.message, 8_000),
+        suggestedActions: boundedStringList(item.suggestedActions, 6, 140),
+        confidence: typeof item.confidence === "number" ? Math.max(0, Math.min(1, item.confidence)) : 0.82,
+      }));
+  } catch {
+    return null;
+  }
+}
+
+async function handleTeamChatRun(req, res) {
+  if (req.method !== "POST") {
+    sendMethodNotAllowed(req, res, ["POST"]);
+    return;
+  }
+  if (!checkRateLimit(req, "team-chat", TEAM_CHAT_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many team chat requests. Try again shortly." });
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+  } catch (error) {
+    sendJson(req, res, 400, { error: error instanceof Error ? error.message : "Invalid request body" });
+    return;
+  }
+
+  const message = cleanText(body?.message, 8_000);
+  if (!message) {
+    sendJson(req, res, 400, { error: "Missing required field: message" });
+    return;
+  }
+
+  const routedAgents = selectTeamAgents(message, body?.selectedAgents);
+  const modelResponses = await maybeGenerateTeamChatWithModel(body, routedAgents);
+  const responses = modelResponses?.length
+    ? modelResponses
+    : routedAgents.map((agent) => buildDeterministicAgentResponse(agent, message, body));
+
+  sendJson(req, res, 200, {
+    conversationId: cleanText(body?.conversationId, 120) || null,
+    routedAgentIds: routedAgents.map((agent) => agent.id),
+    responses,
   });
 }
 
@@ -693,6 +963,118 @@ async function handleIntegrationRoutes(req, res, url) {
     sendJson(req, res, error.status || 500, {
       error: error.message || "Integration request failed",
       missing: error.missing || undefined,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+async function handleApprovalRoutes(req, res, url) {
+  if (!url.pathname.startsWith("/api/approval")) return false;
+  if (!checkRateLimit(req, "approval", API_MAX_REQUESTS)) {
+    sendJson(req, res, 429, { error: "Too many approval requests. Try again shortly." });
+    return true;
+  }
+  if (!requirePrivilegedApiAccess(req, res, "Content approval queue")) {
+    return true;
+  }
+
+  if (url.pathname === "/api/approval/queue" || url.pathname === "/api/approval/items") {
+    if (req.method === "GET") {
+      sendJson(req, res, 200, await approvalQueue.list());
+      return true;
+    }
+    if (req.method === "POST") {
+      const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+      const content = normalizePublishPayload(body.content || body);
+      const item = await approvalQueue.create({ content });
+      sendJson(req, res, 201, { item, persistenceMode: approvalStore.mode(), fallbackReason: approvalStore.fallbackReason() });
+      return true;
+    }
+    sendMethodNotAllowed(req, res, ["GET", "POST"]);
+    return true;
+  }
+
+  const itemMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)$/);
+  if (itemMatch) {
+    if (req.method !== "GET") {
+      sendMethodNotAllowed(req, res, ["GET"]);
+      return true;
+    }
+    const item = await approvalQueue.get(cleanText(itemMatch[1], 120));
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+    sendJson(req, res, 200, { item });
+    return true;
+  }
+
+  const actionMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)\/actions$/);
+  if (actionMatch) {
+    if (req.method !== "POST") {
+      sendMethodNotAllowed(req, res, ["POST"]);
+      return true;
+    }
+    const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+    const item = await approvalQueue.applyAction(cleanText(actionMatch[1], 120), body);
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+    sendJson(req, res, 200, { item });
+    return true;
+  }
+
+  const publishMatch = url.pathname.match(/^\/api\/approval\/items\/([^/]+)\/publish$/);
+  if (publishMatch) {
+    if (req.method !== "POST") {
+      sendMethodNotAllowed(req, res, ["POST"]);
+      return true;
+    }
+    const body = await readJsonBody(req, MAX_JSON_BODY_BYTES, { requireJson: true });
+    const itemId = cleanText(publishMatch[1], 120);
+    const item = await approvalQueue.get(itemId);
+    if (!item) {
+      sendJson(req, res, 404, { error: "Content item not found" });
+      return true;
+    }
+
+    const ownerStage = item.workflow.find((stage) => stage.stage === "Owner Approval");
+    if (!ownerStage || ownerStage.status !== "Approved") {
+      sendJson(req, res, 409, { error: "Owner approval is required before publishing" });
+      return true;
+    }
+
+    const platformList = Array.isArray(body.platforms) ? body.platforms : [];
+    const normalizedPlatforms = platformList
+      .map((platform) => {
+        try {
+          return parsePlatformOrThrow(platform);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (normalizedPlatforms.length === 0) {
+      sendJson(req, res, 400, { error: "At least one valid platform is required" });
+      return true;
+    }
+
+    const publishingPayload = normalizePublishPayload(item.content);
+    const responses = normalizedPlatforms.map((platform) => socialService.publish(platform, publishingPayload));
+    const hasFailure = responses.some((response) => !response.success);
+    const action = hasFailure ? "fail" : "publish";
+    const actionItem = await approvalQueue.applyAction(itemId, {
+      action,
+      actor: cleanText(body.actor, 120) || "Owner",
+      notes: hasFailure ? "One or more platform publishes failed." : "Published after owner approval.",
+    });
+    sendJson(req, res, hasFailure ? 409 : 200, {
+      item: actionItem,
+      responses,
     });
     return true;
   }
@@ -1347,6 +1729,64 @@ async function handleAgentRuns(req, res, url) {
   sendMethodNotAllowed(req, res, ["GET", "POST"]);
 }
 
+async function handleTeamChatConversations(req, res, url) {
+  if (!requirePrivilegedApiAccess(req, res, "Team chat conversations API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const rows = await db.teamChat.conversations.list(workspaceId);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.teamChat.conversations.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST"]);
+}
+
+async function handleTeamChatMessages(req, res, url) {
+  if (!requirePrivilegedApiAccess(req, res, "Team chat messages API")) return;
+
+  if (req.method === "GET") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const conversationId = requireUuid(url.searchParams.get("conversation_id"), "conversation_id");
+    const rows = await db.teamChat.messages.list(workspaceId, conversationId);
+    sendJson(req, res, 200, { data: rows });
+    return;
+  }
+
+  if (req.method === "POST") {
+    if (rejectNonJsonRequest(req, res)) return;
+    const body = await readJsonBody(req);
+    const missing = [];
+    if (!body.conversation_id) missing.push("conversation_id");
+    if (!body.sender) missing.push("sender");
+    if (!body.message) missing.push("message");
+    if (missing.length) { sendJson(req, res, 400, { error: "Missing required fields", missing }); return; }
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const row = await db.teamChat.messages.create(workspaceId, body);
+    sendJson(req, res, 201, row);
+    return;
+  }
+
+  if (req.method === "DELETE") {
+    const workspaceId = await resolveWorkspaceId(url.searchParams);
+    const conversationId = requireUuid(url.searchParams.get("conversation_id"), "conversation_id");
+    await db.teamChat.messages.clear(workspaceId, conversationId);
+    sendJson(req, res, 200, { ok: true });
+    return;
+  }
+
+  sendMethodNotAllowed(req, res, ["GET", "POST", "DELETE"]);
+}
+
 function safeStaticPath(pathname) {
   let decoded;
   try {
@@ -1465,6 +1905,23 @@ export function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/team-chat/conversations") {
+    handleTeamChatConversations(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname === "/api/team-chat/messages") {
+    handleTeamChatMessages(req, res, url).catch((error) => dataApiErrorResponse(req, res, error));
+    return;
+  }
+
+  if (url.pathname === "/api/team-chat/run") {
+    handleTeamChatRun(req, res).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown team chat error" });
+    });
+    return;
+  }
+
   if (url.pathname === "/api/agents/run") {
     handleAgentRun(req, res).catch((error) => {
       sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown agent run error" });
@@ -1479,18 +1936,29 @@ export function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname.startsWith("/api/approval")) {
+    handleApprovalRoutes(req, res, url).catch((error) => {
+      sendJson(req, res, 500, { error: error instanceof Error ? error.message : "Unknown approval queue error" });
+    });
+    return;
+  }
+
   if (url.pathname === "/api/health") {
     sendJson(req, res, 200, {
       ok: true,
       supabaseConfigured: Boolean(supabaseUrl && supabaseSecretKey),
       agentRunEndpoint: "/api/agents/run",
+      teamChatEndpoint: "/api/team-chat/run",
       integrationsEndpoint: "/api/integrations/status",
+      approvalQueueEndpoint: "/api/approval/queue",
       dataEndpoints: {
         brandProfiles: "/api/data/brand-profiles",
         campaigns: "/api/data/campaigns",
         draftPosts: "/api/data/draft-posts",
         scheduledPosts: "/api/data/scheduled-posts",
         agentRuns: "/api/data/agent-runs",
+        teamChatConversations: "/api/team-chat/conversations",
+        teamChatMessages: "/api/team-chat/messages",
       },
     });
     return;

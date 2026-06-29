@@ -25,7 +25,6 @@ import {
   Lightning,
   List,
   MagnifyingGlass,
-  Megaphone,
   PaperPlaneTilt,
   PlugsConnected,
   Plus,
@@ -34,19 +33,19 @@ import {
   ShieldCheck,
   SquaresFour,
   Storefront,
-  Square,
   Target,
   TiktokLogo,
   TrendUp,
   UploadSimple,
   UsersThree,
-  VideoCamera,
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
 import { createClient as createSupabaseClient } from "./utils/supabase/client.js";
+import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
 import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
+import { TeamChatPage } from "./components/TeamChatPage.jsx";
 
 function LogoMark() {
   const uid = useId();
@@ -119,6 +118,7 @@ const itemVariants = {
 
 const navItems = [
   ["Command center", HouseLine],
+  ["AI Team Chat", UsersThree],
   ["Briefs", Command],
   ["Agents", UsersThree],
   ["Campaigns", PaperPlaneTilt],
@@ -127,13 +127,6 @@ const navItems = [
   ["Insights", ChartLineUp],
   ["Integrations", PlugsConnected],
   ["Settings", GearSix],
-];
-
-const agents = [
-  ["Audience Cartographer", "Segment research", "47.2%", "intent lift", Command],
-  ["Copy Pressure Tester", "Landing pages", "18", "variants queued", SquaresFour],
-  ["Offer Forecaster", "Promo calendar", "$12.8k", "forecast", TrendUp],
-  ["Retention Analyst", "Email & lifecycle", "7", "cohorts live", UsersThree],
 ];
 
 const metrics = [
@@ -518,14 +511,6 @@ function statusLabel(status) {
   if (status === "needs_reconnect") return "Needs Reconnect";
   return "Disconnected";
 }
-
-const liveAgentCards = [
-  ["Research Agent", "Finding audience pain points", "Running", 72, Target],
-  ["Content Agent", "Writing TikTok and Facebook post ideas", "Review", 58, ClipboardText],
-  ["Video Agent", "Drafting short-form video scripts", "Running", 44, VideoCamera],
-  ["Ad Agent", "Testing hooks and offers", "Queued", 26, Megaphone],
-  ["Calendar Agent", "Scheduling content for the week", "Done", 100, CalendarBlank],
-];
 
 const memoryCards = [
   ["Brand voice", "Clear, motivating, low-hype", Command],
@@ -1344,7 +1329,7 @@ function BriefsPage() {
         <div className="briefs-hero-copy">
           <span className="electric-kicker">Mission control</span>
           <h1>Agent Builder</h1>
-          <p>Build your HiveAI marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
+          <p>Build your HiveAI marketing agents, give them a mission, and run them through the backend.</p>
           <div className="hero-actions">
             <MagneticButton className="primary-button large" type="button">
               <Plus size={20} />
@@ -1360,8 +1345,8 @@ function BriefsPage() {
         <div className="briefs-radar" aria-hidden="true">
           <motion.span animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
           <div>
-            <strong>5</strong>
-            <small>agents online</small>
+            <strong>0</strong>
+            <small>live agents</small>
           </div>
         </div>
       </motion.section>
@@ -1473,39 +1458,11 @@ function BriefsPage() {
         <MotionPanel className="panel live-workspace">
           <div className="panel-title">
             <h2>Live Agent Workspace</h2>
-            <span>Realtime</span>
+            <span>Waiting for runs</span>
           </div>
-          <div className="live-agent-grid">
-            {liveAgentCards.map(([name, task, status, progress, Icon], index) => (
-              <motion.article
-                className="live-agent-card"
-                key={name}
-                style={{ "--index": index }}
-                variants={itemVariants}
-                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.36)" }}
-                layout
-              >
-                <div className="live-agent-head">
-                  <span className="agent-icon small">
-                    <Icon size={19} />
-                  </span>
-                  <span className={`status-pill ${status.toLowerCase()}`}>{status}</span>
-                </div>
-                <h3>{name}</h3>
-                <p>{task}</p>
-                <div className="progress-meta">
-                  <span>Progress</span>
-                  <strong>{progress}%</strong>
-                </div>
-                <div className="agent-progress" aria-hidden="true">
-                  <motion.span
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: progress / 100 }}
-                    transition={{ duration: 0.9, delay: 0.1 + index * 0.08, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                </div>
-              </motion.article>
-            ))}
+          <div style={{ padding: "2rem", textAlign: "center", opacity: 0.6 }}>
+            <UsersThree size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+            <p>Run a real agent from the builder to see live backend activity here.</p>
           </div>
         </MotionPanel>
       </div>
@@ -1898,7 +1855,7 @@ function IntegrationsPage() {
         </div>
       </MotionPanel>
 
-      <PublishWorkspace integrations={integrations} onRefresh={refresh} />
+      <ContentApprovalQueue integrations={integrations} onRefreshIntegrations={refresh} />
 
       <MotionPanel className="panel scheduler-panel">
         <div className="panel-title">
@@ -1946,37 +1903,6 @@ function Topbar() {
         </MagneticButton>
       </div>
     </header>
-  );
-}
-
-function AgentList({ compact = false }) {
-  return (
-    <motion.section className={compact ? "agent-panel compact-panel" : "agent-panel"} aria-label="Active agents" variants={itemVariants} layout>
-      <div className="panel-title">
-        <h2>Active agents</h2>
-        <span>Live</span>
-      </div>
-      <motion.div className="agent-list" variants={{ animate: { transition: { staggerChildren: 0.075 } } }}>
-        {agents.map(([name, channel, value, label, Icon], index) => (
-          <motion.article className="agent-row" style={{ "--index": index }} key={name} variants={itemVariants} whileHover={{ x: 5, borderColor: "rgba(177, 108, 255, 0.38)" }} layout>
-            <div className="agent-icon">
-              <Icon size={21} />
-            </div>
-            <div className="agent-copy">
-              <strong>{name}</strong>
-              <span>{compact ? label : channel}</span>
-            </div>
-            {!compact && (
-              <div className="agent-value">
-                <strong>{value}</strong>
-                <span>{label}</span>
-              </div>
-            )}
-            <span className="dot" />
-          </motion.article>
-        ))}
-      </motion.div>
-    </motion.section>
   );
 }
 
@@ -2406,7 +2332,6 @@ function App() {
               All systems nominal
             </div>
           </motion.section>
-          <AgentList />
         </motion.div>
 
         <motion.div className="desktop-grid" variants={{ animate: { transition: { staggerChildren: 0.09 } } }}>
@@ -2421,6 +2346,7 @@ function App() {
         {settings.notifications && <WarningBar />}
       </>
     ),
+    "AI Team Chat": <TeamChatPage />,
     Briefs: <BriefsPage />,
     Agents: (
       <AgentsPage

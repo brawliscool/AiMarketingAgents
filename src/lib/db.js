@@ -476,6 +476,101 @@ async function agentRunsDelete(id, workspaceId) {
   handleSupabaseError(error, "agent_runs.delete");
 }
 
+// ── team_chat ─────────────────────────────────────────────────────────────────
+
+const conversationSelect = "id,workspace_id,title,summary,selected_agents,context,created_at,updated_at";
+const messageSelect = "id,conversation_id,workspace_id,sender,agent_id,agent_name,role,message,confidence,suggested_actions,created_at";
+
+async function teamChatConversationsList(workspaceId) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("team_chat_conversations")
+    .select(conversationSelect)
+    .eq("workspace_id", workspaceId)
+    .order("updated_at", { ascending: false })
+    .limit(PAGE_LIMIT);
+  handleSupabaseError(error, "team_chat_conversations.list");
+  return data ?? [];
+}
+
+async function teamChatConversationsCreate(workspaceId, fields) {
+  const supabase = getClient();
+  const row = {
+    workspace_id: workspaceId,
+    title: fields.title ?? "AI Team Chat",
+    summary: fields.summary ?? null,
+    selected_agents: Array.isArray(fields.selected_agents) ? fields.selected_agents : [],
+    context: fields.context ?? {},
+  };
+  const { data, error } = await supabase
+    .from("team_chat_conversations")
+    .insert(row)
+    .select(conversationSelect)
+    .single();
+  handleSupabaseError(error, "team_chat_conversations.create");
+  return data;
+}
+
+async function teamChatConversationsUpdate(id, workspaceId, fields) {
+  const supabase = getClient();
+  const allowed = ["title", "summary", "selected_agents", "context"];
+  const patch = Object.fromEntries(Object.entries(fields).filter(([key]) => allowed.includes(key)));
+  const { data, error } = await supabase
+    .from("team_chat_conversations")
+    .update(patch)
+    .eq("id", id)
+    .eq("workspace_id", workspaceId)
+    .select(conversationSelect)
+    .single();
+  handleSupabaseError(error, "team_chat_conversations.update");
+  return data;
+}
+
+async function teamChatMessagesList(workspaceId, conversationId) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("team_chat_messages")
+    .select(messageSelect)
+    .eq("workspace_id", workspaceId)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true })
+    .limit(300);
+  handleSupabaseError(error, "team_chat_messages.list");
+  return data ?? [];
+}
+
+async function teamChatMessagesCreate(workspaceId, fields) {
+  const supabase = getClient();
+  const row = {
+    workspace_id: workspaceId,
+    conversation_id: fields.conversation_id,
+    sender: fields.sender,
+    agent_id: fields.agent_id ?? null,
+    agent_name: fields.agent_name ?? null,
+    role: fields.role ?? null,
+    message: fields.message,
+    confidence: fields.confidence ?? null,
+    suggested_actions: Array.isArray(fields.suggested_actions) ? fields.suggested_actions : [],
+  };
+  const { data, error } = await supabase
+    .from("team_chat_messages")
+    .insert(row)
+    .select(messageSelect)
+    .single();
+  handleSupabaseError(error, "team_chat_messages.create");
+  return data;
+}
+
+async function teamChatMessagesClear(workspaceId, conversationId) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from("team_chat_messages")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("conversation_id", conversationId);
+  handleSupabaseError(error, "team_chat_messages.clear");
+}
+
 // ── public API ────────────────────────────────────────────────────────────────
 
 export const db = {
@@ -519,5 +614,17 @@ export const db = {
     create: agentRunsCreate,
     update: agentRunsUpdate,
     delete: agentRunsDelete,
+  },
+  teamChat: {
+    conversations: {
+      list: teamChatConversationsList,
+      create: teamChatConversationsCreate,
+      update: teamChatConversationsUpdate,
+    },
+    messages: {
+      list: teamChatMessagesList,
+      create: teamChatMessagesCreate,
+      clear: teamChatMessagesClear,
+    },
   },
 };
