@@ -1260,14 +1260,14 @@ function SignalBoard() {
 
 function ProductMock() {
   return (
-    <motion.div className="product-mock" aria-hidden="true" whileHover={{ rotateX: 2, rotateY: -4, scale: 1.015 }} transition={fastSpring}>
-      <motion.div className="mock-screen back" animate={{ y: [0, 5, 0], rotate: [-8, -10, -8] }} transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut" }} />
-      <motion.div className="mock-screen front" animate={{ y: [0, -6, 0], rotate: [7, 5, 7] }} transition={{ duration: 5.6, repeat: Infinity, ease: "easeInOut" }}>
-        <span />
-        <span />
-        <span />
-        <div className="mock-chart" />
-      </motion.div>
+    <motion.div className="product-mock product-mock-image" aria-hidden="true" whileHover={{ rotateX: 2, rotateY: -4, scale: 1.015 }} transition={fastSpring}>
+      <img
+        src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
+        alt=""
+        className="product-mock-shot"
+        loading="lazy"
+        decoding="async"
+      />
     </motion.div>
   );
 }
@@ -1414,11 +1414,14 @@ function BottomCards() {
         <strong>Clean state</strong>
         <p>All core agents responded within 240 ms.</p>
       </MotionPanel>
-      <MotionPanel className="panel loading-card" aria-label="Loading preview">
+      <MotionPanel className="panel loading-card preview-image-card" aria-label="Loading preview">
         <div className="section-kicker">Loading preview</div>
-        <span />
-        <span />
-        <span />
+        <img
+          src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
+          alt="HiveAI Marketing Agents dashboard preview"
+          loading="lazy"
+          decoding="async"
+        />
       </MotionPanel>
     </div>
   );
