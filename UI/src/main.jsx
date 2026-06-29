@@ -25,7 +25,6 @@ import {
   Lightning,
   List,
   MagnifyingGlass,
-  Megaphone,
   PaperPlaneTilt,
   PlugsConnected,
   Plus,
@@ -34,13 +33,11 @@ import {
   ShieldCheck,
   SquaresFour,
   Storefront,
-  Square,
   Target,
   TiktokLogo,
   TrendUp,
   UploadSimple,
   UsersThree,
-  VideoCamera,
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
@@ -129,13 +126,6 @@ const navItems = [
   ["Insights", ChartLineUp],
   ["Integrations", PlugsConnected],
   ["Settings", GearSix],
-];
-
-const agents = [
-  ["Audience Cartographer", "Segment research", "47.2%", "intent lift", Command],
-  ["Copy Pressure Tester", "Landing pages", "18", "variants queued", SquaresFour],
-  ["Offer Forecaster", "Promo calendar", "$12.8k", "forecast", TrendUp],
-  ["Retention Analyst", "Email & lifecycle", "7", "cohorts live", UsersThree],
 ];
 
 const metrics = [
@@ -521,14 +511,6 @@ function statusLabel(status) {
   return "Disconnected";
 }
 
-const liveAgentCards = [
-  ["Research Agent", "Finding audience pain points", "Running", 72, Target],
-  ["Content Agent", "Writing TikTok and Facebook post ideas", "Review", 58, ClipboardText],
-  ["Video Agent", "Drafting short-form video scripts", "Running", 44, VideoCamera],
-  ["Ad Agent", "Testing hooks and offers", "Queued", 26, Megaphone],
-  ["Calendar Agent", "Scheduling content for the week", "Done", 100, CalendarBlank],
-];
-
 const memoryCards = [
   ["Brand voice", "Clear, motivating, low-hype", Command],
   ["Offer details", "$49 intro consult with trainer roadmap", Storefront],
@@ -684,141 +666,31 @@ function PageShell({ title, subtitle }) {
   );
 }
 
-const agentRosterSeed = [
-  {
-    id: "director",
-    name: "Marketing Director",
-    role: "Strategy, prioritization, and handoffs",
-    icon: Command,
-    active: true,
-    activeActivity: "Mapping the next launch angle and assigning the work.",
-    idleActivity: "Waiting for a new brief before resuming strategy.",
-  },
-  {
-    id: "writer",
-    name: "Content Writer",
-    role: "Copy, posts, and launch sequences",
-    icon: ClipboardText,
-    active: true,
-    activeActivity: "Writing a launch sequence for the new product.",
-    idleActivity: "Paused while waiting for the next prompt.",
-  },
-  {
-    id: "social",
-    name: "Social Media Manager",
-    role: "Posting schedule and channel timing",
-    icon: PaperPlaneTilt,
-    active: true,
-    activeActivity: "Scheduling posts for this week’s campaign.",
-    idleActivity: "Standing by for the next content batch.",
-  },
-  {
-    id: "analytics",
-    name: "Analytics Agent",
-    role: "Performance review and insight tracking",
-    icon: ChartLineUp,
-    active: true,
-    activeActivity: "Analyzing campaign performance and trends.",
-    idleActivity: "Idle while it waits for fresh data.",
-  },
-  {
-    id: "video",
-    name: "Video Creator",
-    role: "Short-form script and edit support",
-    icon: VideoCamera,
-    active: false,
-    activeActivity: "Drafting a short-form video hook and shot list.",
-    idleActivity: "Waiting for script notes and asset approval.",
-  },
-  {
-    id: "seo",
-    name: "SEO Specialist",
-    role: "Search opportunities and content gaps",
-    icon: Target,
-    active: false,
-    activeActivity: "Reviewing page structure and ranking opportunities.",
-    idleActivity: "Idle and ready to pick up the next keyword set.",
-  },
-];
-
-function AgentsPage({ roster, onSetAgentActive }) {
-  const activeCount = roster.filter((agent) => agent.active).length;
-
+function AgentsPage() {
   return (
     <div className="agents-page">
       <MotionPanel className="panel agents-hero">
         <div>
           <div className="section-kicker">Agents</div>
           <h1>Agents</h1>
-          <p>Start or stop each agent, see what it is doing, and watch the active ones glow green.</p>
+          <p>Agents that are actually running will appear here once they are connected to backend run data.</p>
         </div>
         <div className="agents-summary">
-          <strong>{activeCount}</strong>
-          <span>active now</span>
+          <strong>0</strong>
+          <span>live agents</span>
         </div>
       </MotionPanel>
 
       <MotionPanel className="panel agents-board">
         <div className="panel-title">
           <h2>Live agent roster</h2>
-          <span>Realtime</span>
+          <span>Waiting for data</span>
         </div>
 
-        <motion.div className="agents-list" variants={{ animate: { transition: { staggerChildren: 0.08 } } }}>
-          {roster.map((agent, index) => {
-            const Icon = agent.icon;
-            const isActive = agent.active;
-
-            return (
-              <motion.article
-                className={isActive ? "agent-entry active" : "agent-entry"}
-                key={agent.id}
-                style={{ "--index": index }}
-                variants={itemVariants}
-                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.34)" }}
-                layout
-              >
-                <span className={isActive ? "agent-led active" : "agent-led inactive"} aria-hidden="true" />
-                <div className="agent-entry-icon">
-                  <Icon size={22} />
-                </div>
-
-                <div className="agent-entry-copy">
-                  <div className="agent-entry-top">
-                    <div className="agent-entry-name">
-                      <h3>{agent.name}</h3>
-                      <span className={isActive ? "agent-state active" : "agent-state inactive"}>{isActive ? "Active" : "Inactive"}</span>
-                    </div>
-                    <div className="agent-entry-actions">
-                      <button
-                        type="button"
-                        className="agent-action stop"
-                        onClick={() => onSetAgentActive(agent.id, false)}
-                        disabled={!isActive}
-                        aria-disabled={!isActive}
-                      >
-                        <Square size={14} weight="fill" />
-                        Stop
-                      </button>
-                      <button
-                        type="button"
-                        className="agent-action start"
-                        onClick={() => onSetAgentActive(agent.id, true)}
-                        disabled={isActive}
-                        aria-disabled={isActive}
-                      >
-                        <Play size={14} weight="fill" />
-                        Start
-                      </button>
-                    </div>
-                  </div>
-                  <p className="agent-role">{agent.role}</p>
-                  <div className="agent-activity">{isActive ? agent.activeActivity : agent.idleActivity}</div>
-                </div>
-              </motion.article>
-            );
-          })}
-        </motion.div>
+        <div style={{ padding: "2rem", textAlign: "center", opacity: 0.6 }}>
+          <UsersThree size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+          <p>No live agents are running right now.</p>
+        </div>
       </MotionPanel>
     </div>
   );
@@ -932,7 +804,7 @@ function BriefsPage() {
         <div className="briefs-hero-copy">
           <span className="electric-kicker">Mission control</span>
           <h1>Agent Builder</h1>
-          <p>Build your HiveAI marketing agents, give them a mission, and watch what each agent is working on in real time.</p>
+          <p>Build your HiveAI marketing agents, give them a mission, and run them through the backend.</p>
           <div className="hero-actions">
             <MagneticButton className="primary-button large" type="button">
               <Plus size={20} />
@@ -948,8 +820,8 @@ function BriefsPage() {
         <div className="briefs-radar" aria-hidden="true">
           <motion.span animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
           <div>
-            <strong>5</strong>
-            <small>agents online</small>
+            <strong>0</strong>
+            <small>live agents</small>
           </div>
         </div>
       </motion.section>
@@ -1061,39 +933,11 @@ function BriefsPage() {
         <MotionPanel className="panel live-workspace">
           <div className="panel-title">
             <h2>Live Agent Workspace</h2>
-            <span>Realtime</span>
+            <span>Waiting for runs</span>
           </div>
-          <div className="live-agent-grid">
-            {liveAgentCards.map(([name, task, status, progress, Icon], index) => (
-              <motion.article
-                className="live-agent-card"
-                key={name}
-                style={{ "--index": index }}
-                variants={itemVariants}
-                whileHover={{ y: -3, borderColor: "rgba(177, 108, 255, 0.36)" }}
-                layout
-              >
-                <div className="live-agent-head">
-                  <span className="agent-icon small">
-                    <Icon size={19} />
-                  </span>
-                  <span className={`status-pill ${status.toLowerCase()}`}>{status}</span>
-                </div>
-                <h3>{name}</h3>
-                <p>{task}</p>
-                <div className="progress-meta">
-                  <span>Progress</span>
-                  <strong>{progress}%</strong>
-                </div>
-                <div className="agent-progress" aria-hidden="true">
-                  <motion.span
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: progress / 100 }}
-                    transition={{ duration: 0.9, delay: 0.1 + index * 0.08, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                </div>
-              </motion.article>
-            ))}
+          <div style={{ padding: "2rem", textAlign: "center", opacity: 0.6 }}>
+            <UsersThree size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+            <p>Run a real agent from the builder to see live backend activity here.</p>
           </div>
         </MotionPanel>
       </div>
@@ -1537,37 +1381,6 @@ function Topbar() {
   );
 }
 
-function AgentList({ compact = false }) {
-  return (
-    <motion.section className={compact ? "agent-panel compact-panel" : "agent-panel"} aria-label="Active agents" variants={itemVariants} layout>
-      <div className="panel-title">
-        <h2>Active agents</h2>
-        <span>Live</span>
-      </div>
-      <motion.div className="agent-list" variants={{ animate: { transition: { staggerChildren: 0.075 } } }}>
-        {agents.map(([name, channel, value, label, Icon], index) => (
-          <motion.article className="agent-row" style={{ "--index": index }} key={name} variants={itemVariants} whileHover={{ x: 5, borderColor: "rgba(177, 108, 255, 0.38)" }} layout>
-            <div className="agent-icon">
-              <Icon size={21} />
-            </div>
-            <div className="agent-copy">
-              <strong>{name}</strong>
-              <span>{compact ? label : channel}</span>
-            </div>
-            {!compact && (
-              <div className="agent-value">
-                <strong>{value}</strong>
-                <span>{label}</span>
-              </div>
-            )}
-            <span className="dot" />
-          </motion.article>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
-}
-
 function SignalBoard() {
   return (
     <MotionPanel className="panel signal-board">
@@ -1813,7 +1626,6 @@ function MobileSummary() {
 
 function App() {
   const [currentPage, setCurrentPage] = useState("Command center");
-  const [roster, setRoster] = useState(agentRosterSeed);
   const [settings, setSettings] = useState(() => {
     if (typeof window === "undefined") return { ...defaultSettings, tone: "Focused" };
     try {
@@ -1836,19 +1648,6 @@ function App() {
 
   const toggleSetting = (key) => {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
-  };
-
-  const setAgentActive = (id, nextActive) => {
-    setRoster((current) =>
-      current.map((agent) =>
-        agent.id === id
-          ? {
-              ...agent,
-              active: nextActive,
-            }
-          : agent,
-      ),
-    );
   };
 
   const pageContent = {
@@ -1874,7 +1673,6 @@ function App() {
               All systems nominal
             </div>
           </motion.section>
-          <AgentList />
         </motion.div>
 
         <motion.div className="desktop-grid" variants={{ animate: { transition: { staggerChildren: 0.09 } } }}>
@@ -1891,7 +1689,7 @@ function App() {
     ),
     "AI Team Chat": <TeamChatPage />,
     Briefs: <BriefsPage />,
-    Agents: <AgentsPage roster={roster} onSetAgentActive={setAgentActive} />,
+    Agents: <AgentsPage />,
     Campaigns: <CampaignsPage />,
     Experiments: <PageShell title="Experiments" subtitle="A lightweight experiments page." />,
     Calendar: <MarketingCalendarPage />,
