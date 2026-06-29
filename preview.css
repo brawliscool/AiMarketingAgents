@@ -44,8 +44,57 @@
   display: none !important;
 }
 
+.briefs-radar div {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  text-align: center !important;
+}
+
+.briefs-radar strong {
+  display: block !important;
+  font-size: clamp(2.45rem, 9vw, 3.3rem) !important;
+  font-weight: 800 !important;
+  line-height: 0.9 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.briefs-radar small {
+  display: block !important;
+  max-width: 74px !important;
+  color: rgba(251, 248, 255, 0.72) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.08em !important;
+  text-align: center !important;
+  text-transform: uppercase !important;
+}
+
 @media (max-width: 820px) {
   .brief-panel .product-mock {
     min-height: 220px !important;
+  }
+
+  .briefs-radar {
+    width: min(270px, 78vw) !important;
+    justify-self: center !important;
+  }
+
+  .briefs-radar div {
+    width: 124px !important;
+    height: 124px !important;
+  }
+
+  .briefs-radar strong {
+    font-size: 3.05rem !important;
+  }
+
+  .briefs-radar small {
+    max-width: 76px !important;
+    font-size: 0.7rem !important;
   }
 }
