@@ -44,6 +44,7 @@ import {
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
+import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
 import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
 import { TeamChatPage } from "./components/TeamChatPage.jsx";
@@ -1485,7 +1486,7 @@ function IntegrationsPage() {
         </div>
       </MotionPanel>
 
-      <PublishWorkspace integrations={integrations} onRefresh={refresh} />
+      <ContentApprovalQueue integrations={integrations} onRefreshIntegrations={refresh} />
 
       <MotionPanel className="panel scheduler-panel">
         <div className="panel-title">

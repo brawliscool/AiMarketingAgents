@@ -85,10 +85,18 @@ The backend listens on `http://127.0.0.1:8787` and exposes:
 - `POST /api/integrations/:platform/disconnect` - removes local token state
 - `POST /api/integrations/:platform/refresh` - refreshes local token metadata when refresh tokens exist
 - `POST /api/integrations/:platform/publish` - accepts a normalized publishing payload
+- `GET /api/approval/queue` - returns content items, owner dashboard metrics, and persistence mode
+- `POST /api/approval/items` - creates a content item and starts the full approval workflow
+- `POST /api/approval/items/:id/actions` - supports `approve`, `reject`, `send_back`, `edit`, `regenerate`, and related actions
+- `POST /api/approval/items/:id/publish` - publishes approved content to selected social integrations
 
 The Agent builder sends the user's model API key and official social publishing token to this endpoint for the current run only. The backend redacts secrets in responses and requires a social platform, platform account/page ID, and API/access token before it will run a posting-capable agent.
 
-By default, the endpoint generates a draft and verifies publishing access without posting live. When `publishLive` is enabled, the backend can publish text posts to a Facebook Page through the Meta Graph API using a Page ID and Page access token. Instagram, TikTok, and other channels still need their own official OAuth/API adapters before live posting is enabled for those platforms. Platform username/password collection is intentionally unsupported; use official OAuth or provider-issued API tokens instead.
+By default, generated content is queued for approval before publication. The approval pipeline is:
+
+Research Agent -> Content Writer -> SEO Review -> Brand Voice Review -> Compliance Check -> Owner Approval -> Scheduled -> Published
+
+When owner approval is complete, `POST /api/approval/items/:id/publish` can publish to selected connected platforms. Platform username/password collection is intentionally unsupported; use official OAuth or provider-issued API tokens instead.
 
 Optional backend environment:
 

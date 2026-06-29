@@ -2457,6 +2457,221 @@ img {
   gap: 16px;
 }
 
+.approval-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.approval-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.approval-dashboard article {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.approval-dashboard strong {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.45rem;
+}
+
+.approval-dashboard span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.approval-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.approval-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.approval-item {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.016);
+  cursor: pointer;
+}
+
+.approval-item.active {
+  border-color: rgba(86, 182, 255, 0.46);
+  background: rgba(86, 182, 255, 0.09);
+}
+
+.approval-item span,
+.approval-item small {
+  color: var(--muted);
+}
+
+.approval-detail {
+  display: grid;
+  gap: 12px;
+}
+
+.approval-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: start;
+}
+
+.approval-head h3 {
+  margin: 0 0 8px;
+}
+
+.approval-head span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.approval-version-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.approval-version-compare article {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.approval-version-compare small {
+  color: var(--soft);
+  font-size: 0.76rem;
+}
+
+.approval-version-compare p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  max-height: 170px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-stage {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.016);
+}
+
+.workflow-stage h4 {
+  margin: 0;
+}
+
+.workflow-stage span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.workflow-stage p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.8rem;
+}
+
+.workflow-stage.running {
+  border-color: rgba(86, 182, 255, 0.3);
+  background: rgba(86, 182, 255, 0.08);
+}
+
+.workflow-stage.approved {
+  border-color: rgba(135, 238, 156, 0.28);
+  background: rgba(87, 221, 117, 0.09);
+}
+
+.workflow-stage.rejected,
+.workflow-stage.failed {
+  border-color: rgba(255, 109, 109, 0.34);
+  background: rgba(255, 109, 109, 0.09);
+}
+
+.workflow-stage.needs-changes {
+  border-color: rgba(246, 197, 79, 0.34);
+  background: rgba(246, 197, 79, 0.09);
+}
+
+.approval-ai-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.approval-ai-checks article {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.016);
+}
+
+.approval-ai-checks article > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.approval-ai-checks .has-issues {
+  border-color: rgba(246, 197, 79, 0.34);
+  background: rgba(246, 197, 79, 0.08);
+}
+
+.approval-ai-checks .clear {
+  border-color: rgba(135, 238, 156, 0.24);
+  background: rgba(87, 221, 117, 0.07);
+}
+
+.approval-ai-checks p,
+.approval-ai-checks ul {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.approval-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .platform-picker {
   flex-wrap: wrap;
 }
@@ -3109,7 +3324,8 @@ img {
   .briefs-hero,
   .briefs-dashboard-grid,
   .agents-hero,
-  .integration-grid {
+  .integration-grid,
+  .approval-layout {
     grid-template-columns: 1fr;
   }
 
@@ -3445,7 +3661,11 @@ img {
   }
 
   .builder-form-grid,
-  .memory-grid {
+  .memory-grid,
+  .workflow-grid,
+  .approval-ai-checks,
+  .approval-dashboard,
+  .approval-version-compare {
     grid-template-columns: 1fr;
   }
 
