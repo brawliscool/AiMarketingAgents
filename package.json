@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite --config UI/vite.config.js --host 127.0.0.1",
     "backend": "node server.mjs",
-    "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
+    "build": "vite build --config UI/vite.config.js",
+    "preview": "vite preview --config UI/vite.config.js --host 127.0.0.1",
     "test": "node --test"
   },
   "dependencies": {
