@@ -744,6 +744,31 @@ img {
   display: none;
 }
 
+.startup-fallback {
+  grid-template-columns: 1fr;
+}
+
+.startup-fallback .workspace {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+}
+
+.startup-fallback-panel {
+  width: min(560px, 100%);
+  padding: 28px;
+}
+
+.startup-fallback-panel h1 {
+  margin: 10px 0;
+  font-size: clamp(1.7rem, 7vw, 3rem);
+}
+
+.startup-fallback-panel p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
 .icon-button,
 .primary-button,
 .secondary-button,
