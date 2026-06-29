@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HiveAI Agent Loop</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #070a10;
+        --panel: rgba(16, 22, 34, 0.82);
+        --panel-strong: rgba(26, 34, 50, 0.92);
+        --line: rgba(135, 190, 255, 0.2);
+        --line-hot: rgba(91, 178, 255, 0.72);
+        --text: #f2f6ff;
+        --muted: #9aa6b8;
+        --blue: #5ab0ff;
+        --blue-dark: #0e65d8;
+        --gray: #7e8899;
+        --green: #69f0b7;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 18% 18%, rgba(72, 158, 255, 0.22), transparent 34%),
+          radial-gradient(circle at 78% 22%, rgba(105, 240, 183, 0.12), transparent 32%),
+          linear-gradient(135deg, #05070b 0%, #0b1018 52%, #070a10 100%);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .agent-loop {
+        width: min(1120px, 100%);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 34px;
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025)),
+          var(--panel);
+        box-shadow: var(--shadow);
+        padding: clamp(24px, 5vw, 56px);
+      }
+
+      .agent-loop::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        background: conic-gradient(from var(--angle), transparent 0 22%, rgba(90, 176, 255, 0.35), transparent 45% 100%);
+        opacity: 0.72;
+        animation: spin 8s linear infinite;
+        z-index: 0;
+      }
+
+      .agent-loop::after {
+        content: "";
+        position: absolute;
+        inset: 1px;
+        border-radius: 33px;
+        background:
+          radial-gradient(circle at 70% 24%, rgba(90, 176, 255, 0.14), transparent 34%),
+          rgba(7, 10, 16, 0.94);
+        z-index: 1;
+      }
+
+      .agent-loop > * { position: relative; z-index: 2; }
+
+      .loop-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+        gap: clamp(24px, 5vw, 52px);
+        align-items: center;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        width: fit-content;
+        color: var(--blue);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        padding: 8px 12px;
+        border: 1px solid rgba(90, 176, 255, 0.28);
+        border-radius: 999px;
+        background: rgba(90, 176, 255, 0.08);
+      }
+
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--green);
+        box-shadow: 0 0 18px rgba(105, 240, 183, 0.85);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+
+      h1 {
+        margin: 22px 0 16px;
+        max-width: 680px;
+        font-size: clamp(2.35rem, 6vw, 5.2rem);
+        line-height: 0.94;
+        letter-spacing: -0.07em;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 640px;
+        color: var(--muted);
+        font-size: clamp(1rem, 2vw, 1.25rem);
+        line-height: 1.7;
+      }
+
+      .loop-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 26px;
+      }
+
+      .btn {
+        border: 0;
+        border-radius: 999px;
+        color: #04111f;
+        background: linear-gradient(135deg, #8fd0ff, var(--blue));
+        padding: 13px 18px;
+        font-weight: 800;
+        box-shadow: 0 14px 34px rgba(29, 130, 255, 0.25);
+      }
+
+      .btn.secondary {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: none;
+      }
+
+      .loop-visual {
+        min-height: 360px;
+        display: grid;
+        place-items: center;
+      }
+
+      .orbit {
+        width: min(420px, 88vw);
+        aspect-ratio: 1;
+        position: relative;
+        border-radius: 50%;
+        border: 1px solid rgba(90, 176, 255, 0.22);
+        background:
+          radial-gradient(circle, rgba(90, 176, 255, 0.1), transparent 58%),
+          rgba(255, 255, 255, 0.025);
+      }
+
+      .orbit::before,
+      .orbit::after {
+        content: "";
+        position: absolute;
+        inset: 12%;
+        border: 1px dashed rgba(255, 255, 255, 0.12);
+        border-radius: inherit;
+      }
+
+      .orbit::after {
+        inset: 27%;
+        animation: reverse-spin 18s linear infinite;
+      }
+
+      .core {
+        position: absolute;
+        inset: 34%;
+        display: grid;
+        place-items: center;
+        border-radius: 34px;
+        background: linear-gradient(145deg, rgba(90, 176, 255, 0.18), rgba(255, 255, 255, 0.04));
+        border: 1px solid rgba(90, 176, 255, 0.35);
+        box-shadow: 0 0 50px rgba(90, 176, 255, 0.24);
+        text-align: center;
+      }
+
+      .core strong { font-size: 1.2rem; }
+      .core span { color: var(--muted); font-size: 0.76rem; margin-top: 4px; }
+
+      .node {
+        --rotation: 0deg;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 116px;
+        min-height: 74px;
+        transform: rotate(var(--rotation)) translateX(174px) rotate(calc(var(--rotation) * -1));
+        transform-origin: 0 0;
+        translate: -50% -50%;
+        padding: 12px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        background: rgba(14, 20, 31, 0.9);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+        animation: breathe 3.5s ease-in-out infinite;
+        animation-delay: var(--delay);
+      }
+
+      .node i {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        background: rgba(90, 176, 255, 0.12);
+        color: var(--blue);
+        font-style: normal;
+        margin-bottom: 8px;
+      }
+
+      .node strong { display: block; font-size: 0.88rem; }
+      .node span { color: var(--muted); font-size: 0.72rem; line-height: 1.35; }
+
+      .runner {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        animation: spin 6s linear infinite;
+      }
+
+      .runner::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -6px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 24px rgba(105, 240, 183, 0.85);
+      }
+
+      .steps {
+        margin-top: clamp(26px, 4vw, 44px);
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .step-card {
+        padding: 16px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+      }
+
+      .step-card small {
+        color: var(--blue);
+        font-weight: 900;
+        letter-spacing: 0.12em;
+      }
+
+      .step-card strong {
+        display: block;
+        margin: 10px 0 6px;
+        font-size: 1rem;
+      }
+
+      .step-card p {
+        color: var(--muted);
+        margin: 0;
+        font-size: 0.84rem;
+        line-height: 1.55;
+      }
+
+      @property --angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+
+      @keyframes spin {
+        to { --angle: 360deg; transform: rotate(360deg); }
+      }
+
+      @keyframes reverse-spin {
+        to { transform: rotate(-360deg); }
+      }
+
+      @keyframes pulse {
+        50% { transform: scale(1.55); opacity: 0.5; }
+      }
+
+      @keyframes breathe {
+        50% { border-color: var(--line-hot); box-shadow: 0 18px 42px rgba(33, 136, 255, 0.26); }
+      }
+
+      @media (max-width: 920px) {
+        .loop-header { grid-template-columns: 1fr; }
+        .loop-visual { min-height: 320px; }
+        .node { transform: rotate(var(--rotation)) translateX(138px) rotate(calc(var(--rotation) * -1)); width: 104px; }
+        .steps { grid-template-columns: 1fr; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="agent-loop" aria-labelledby="agent-loop-title">
+      <div class="loop-header">
+        <div>
+          <span class="kicker"><span class="pulse-dot"></span> Agent loop engine</span>
+          <h1 id="agent-loop-title">Build. Test. Improve. Repeat.</h1>
+          <p class="lead">
+            HiveAI agents keep cycling through observe, plan, act, and review so your marketing work moves forward without you hand-holding every step.
+          </p>
+          <div class="loop-actions">
+            <button class="btn">Run the loop</button>
+            <button class="btn secondary">See workflow</button>
+          </div>
+        </div>
+
+        <div class="loop-visual" aria-hidden="true">
+          <div class="orbit">
+            <div class="runner"></div>
+            <div class="core"><div><strong>HiveAI</strong><br /><span>autonomous cycle</span></div></div>
+            <div class="node" style="--rotation: -90deg; --delay: 0s"><i>1</i><strong>Observe</strong><span>Read goals, data, and current state.</span></div>
+            <div class="node" style="--rotation: -18deg; --delay: .15s"><i>2</i><strong>Plan</strong><span>Pick the smartest next move.</span></div>
+            <div class="node" style="--rotation: 54deg; --delay: .3s"><i>3</i><strong>Act</strong><span>Create, edit, post, or call tools.</span></div>
+            <div class="node" style="--rotation: 126deg; --delay: .45s"><i>4</i><strong>Review</strong><span>Check results and catch issues.</span></div>
+            <div class="node" style="--rotation: 198deg; --delay: .6s"><i>5</i><strong>Repeat</strong><span>Loop until the task is done.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <article class="step-card"><small>01</small><strong>Observe</strong><p>The agent reads the campaign goal, brand context, connected tools, and current task state.</p></article>
+        <article class="step-card"><small>02</small><strong>Reason / plan</strong><p>It decides the next best step instead of asking you to micromanage the workflow.</p></article>
+        <article class="step-card"><small>03</small><strong>Act</strong><p>It writes copy, builds assets, updates data, calls APIs, or prepares scheduled posts.</p></article>
+        <article class="step-card"><small>04</small><strong>Observe result</strong><p>It checks the output, catches errors, and compares the result to the original goal.</p></article>
+        <article class="step-card"><small>05</small><strong>Repeat</strong><p>The cycle keeps improving the work until the agent has something ready for approval.</p></article>
+      </div>
+    </section>
+  </body>
+</html>
