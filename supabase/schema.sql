@@ -143,6 +143,63 @@ create index if not exists agent_runs_status_idx on agent_runs (status);
 create index if not exists agent_runs_run_id_idx on agent_runs (run_id);
 
 -- ============================================================
+-- team_chat_conversations
+-- ============================================================
+create table if not exists team_chat_conversations (
+  id              uuid primary key default gen_random_uuid(),
+  workspace_id    uuid not null references workspaces (id) on delete cascade,
+  title           text not null default 'AI Team Chat' check (char_length(title) between 1 and 200),
+  summary         text check (char_length(summary) <= 2000),
+  selected_agents text[] not null default '{}',
+  context         jsonb not null default '{}',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists team_chat_conversations_workspace_idx on team_chat_conversations (workspace_id);
+create index if not exists team_chat_conversations_updated_idx on team_chat_conversations (updated_at desc);
+
+-- ============================================================
+-- team_chat_messages
+-- ============================================================
+create table if not exists team_chat_messages (
+  id                uuid primary key default gen_random_uuid(),
+  conversation_id   uuid not null references team_chat_conversations (id) on delete cascade,
+  workspace_id      uuid not null references workspaces (id) on delete cascade,
+  sender            text not null check (sender in ('user', 'agent', 'system')),
+  agent_id          text check (char_length(agent_id) <= 120),
+  agent_name        text check (char_length(agent_name) <= 120),
+  role              text check (char_length(role) <= 120),
+  message           text not null check (char_length(message) between 1 and 10000),
+  confidence        numeric check (confidence is null or (confidence >= 0 and confidence <= 1)),
+  suggested_actions text[] not null default '{}',
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists team_chat_messages_conversation_idx on team_chat_messages (conversation_id, created_at);
+create index if not exists team_chat_messages_workspace_idx on team_chat_messages (workspace_id);
+
+-- ============================================================
+-- team_chat_agent_responses
+-- ============================================================
+create table if not exists team_chat_agent_responses (
+  id                uuid primary key default gen_random_uuid(),
+  message_id        uuid references team_chat_messages (id) on delete cascade,
+  conversation_id   uuid not null references team_chat_conversations (id) on delete cascade,
+  workspace_id      uuid not null references workspaces (id) on delete cascade,
+  agent_id          text not null check (char_length(agent_id) <= 120),
+  agent_name        text not null check (char_length(agent_name) <= 120),
+  role              text check (char_length(role) <= 120),
+  message           text not null check (char_length(message) between 1 and 10000),
+  confidence        numeric check (confidence is null or (confidence >= 0 and confidence <= 1)),
+  suggested_actions text[] not null default '{}',
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists team_chat_agent_responses_conversation_idx on team_chat_agent_responses (conversation_id, created_at);
+create index if not exists team_chat_agent_responses_agent_idx on team_chat_agent_responses (agent_id);
+
+-- ============================================================
 -- updated_at trigger function (reuse for all tables)
 -- ============================================================
 create or replace function set_updated_at()
@@ -177,6 +234,10 @@ create or replace trigger agent_runs_updated_at
   before update on agent_runs
   for each row execute function set_updated_at();
 
+create or replace trigger team_chat_conversations_updated_at
+  before update on team_chat_conversations
+  for each row execute function set_updated_at();
+
 -- ============================================================
 -- Row Level Security (RLS) stubs — enable and add policies
 -- when you add Supabase Auth.
@@ -187,6 +248,9 @@ create or replace trigger agent_runs_updated_at
 -- alter table draft_posts enable row level security;
 -- alter table scheduled_posts enable row level security;
 -- alter table agent_runs enable row level security;
+-- alter table team_chat_conversations enable row level security;
+-- alter table team_chat_messages enable row level security;
+-- alter table team_chat_agent_responses enable row level security;
 
 -- Example policy (run after enabling RLS):
 -- create policy "workspace members can read their own workspace"

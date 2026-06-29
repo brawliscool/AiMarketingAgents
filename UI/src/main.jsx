@@ -46,6 +46,7 @@ import {
 } from "@phosphor-icons/react";
 import "./styles.css";
 import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
+import { TeamChatPage } from "./components/TeamChatPage.jsx";
 
 function LogoMark() {
   const uid = useId();
@@ -118,6 +119,7 @@ const itemVariants = {
 
 const navItems = [
   ["Command center", HouseLine],
+  ["AI Team Chat", UsersThree],
   ["Briefs", Command],
   ["Agents", UsersThree],
   ["Campaigns", PaperPlaneTilt],
@@ -1886,6 +1888,7 @@ function App() {
         {settings.notifications && <WarningBar />}
       </>
     ),
+    "AI Team Chat": <TeamChatPage />,
     Briefs: <BriefsPage />,
     Agents: <AgentsPage roster={roster} onSetAgentActive={setAgentActive} />,
     Campaigns: <CampaignsPage />,
