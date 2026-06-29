@@ -645,6 +645,14 @@ img {
   animation-delay: 270ms;
 }
 
+.desktop-grid > *:nth-child(5) {
+  animation-delay: 330ms;
+}
+
+.desktop-grid > *:nth-child(6) {
+  animation-delay: 390ms;
+}
+
 .panel {
   padding: 18px;
 }
@@ -791,6 +799,27 @@ img {
     radial-gradient(circle at 72% 35%, rgba(27, 140, 255, 0.24), transparent 24%),
     linear-gradient(135deg, #211633, #09080d);
   transform-style: preserve-3d;
+}
+
+.product-mock-image {
+  padding: 0;
+  border-color: rgba(86, 182, 255, 0.34);
+  background:
+    radial-gradient(circle at 28% 16%, rgba(86, 182, 255, 0.28), transparent 28%),
+    linear-gradient(180deg, rgba(10, 18, 36, 0.92), rgba(4, 6, 12, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 30px 90px rgba(0, 0, 0, 0.44),
+    0 0 46px rgba(27, 140, 255, 0.22);
+}
+
+.product-mock-shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 242px;
+  object-fit: cover;
+  object-position: top center;
 }
 
 .mock-screen {
@@ -941,8 +970,32 @@ img {
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 0.7fr 0.8fr;
+  grid-template-columns: minmax(0, 1fr) 0.7fr;
   gap: 14px;
+}
+
+.dashboard-preview-panel {
+  grid-column: 1 / -1;
+}
+
+.dashboard-preview-frame {
+  overflow: hidden;
+  border: 1px solid rgba(86, 182, 255, 0.24);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(86, 182, 255, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(8, 12, 24, 0.96), rgba(4, 6, 12, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 70px rgba(0, 0, 0, 0.38),
+    0 0 40px rgba(27, 140, 255, 0.14);
+}
+
+.dashboard-preview-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: middle;
 }
 
 .revenue-card {
