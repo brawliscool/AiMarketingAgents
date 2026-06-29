@@ -1390,22 +1390,6 @@ function CalendarPanel() {
   );
 }
 
-function DashboardPreview() {
-  return (
-    <MotionPanel className="panel dashboard-preview-panel" aria-label="Product preview">
-      <div className="section-kicker">Product preview</div>
-      <div className="dashboard-preview-frame">
-        <img
-          src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
-          alt="HiveAI Marketing Agents dashboard preview showing campaigns, agents, analytics, and scheduled content"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
-    </MotionPanel>
-  );
-}
-
 function BottomCards() {
   return (
     <div className="bottom-grid">
@@ -1422,6 +1406,15 @@ function BottomCards() {
         </motion.span>
         <strong>Clean state</strong>
         <p>All core agents responded within 240 ms.</p>
+      </MotionPanel>
+      <MotionPanel className="panel loading-card preview-image-card" aria-label="Loading preview">
+        <div className="section-kicker">Loading preview</div>
+        <img
+          src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
+          alt="HiveAI Marketing Agents dashboard preview"
+          loading="lazy"
+          decoding="async"
+        />
       </MotionPanel>
     </div>
   );
@@ -1618,7 +1611,6 @@ function App() {
           <CurrentBrief />
           <SupabaseStatus />
           <Launches />
-          <DashboardPreview />
           <BottomCards />
         </motion.div>
 
