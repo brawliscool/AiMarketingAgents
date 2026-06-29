@@ -1,19 +1,37 @@
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("button");
-  if (!button) return;
+const pageActions = new Map([
+  ["build new brief", "Briefs"],
+  ["create agent brief", "Briefs"],
+  ["run agents", "Briefs"],
+  ["open brief", "Briefs"],
+  ["view live agents", "Agents"],
+  ["open calendar", "Calendar"],
+  ["view all launches", "Campaigns"],
+]);
 
-  const label = button.textContent.replace(/\s+/g, " ").trim().toLowerCase();
-  if (label !== "build new brief") return;
+function normalizeLabel(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
 
-  event.preventDefault();
+function navigateToPage(pageName) {
+  const pageLabel = normalizeLabel(pageName);
+  const navLink = [...document.querySelectorAll(".side-nav a, a.side-link")]
+    .find((link) => normalizeLabel(link.textContent) === pageLabel);
 
-  const briefsLink = [...document.querySelectorAll(".side-nav a, a.side-link")]
-    .find((link) => link.textContent.replace(/\s+/g, " ").trim().toLowerCase() === "briefs");
-
-  if (briefsLink) {
-    briefsLink.click();
+  if (navLink) {
+    navLink.click();
     return;
   }
 
-  window.location.hash = "briefs";
+  window.location.hash = pageLabel.replace(/\s+/g, "-");
+}
+
+document.addEventListener("click", (event) => {
+  const clickable = event.target.closest("button, a");
+  if (!clickable || clickable.disabled || clickable.matches(".side-link")) return;
+
+  const targetPage = pageActions.get(normalizeLabel(clickable.textContent));
+  if (!targetPage) return;
+
+  event.preventDefault();
+  navigateToPage(targetPage);
 });
