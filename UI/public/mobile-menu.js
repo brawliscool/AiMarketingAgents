@@ -1,93 +1,129 @@
-let mobileMenuReady = false;
+(() => {
+  const MOBILE_NAV_CLASS = "mobile-nav-open";
+  const CLOSE_BUTTON_CLASS = "mobile-nav-close";
 
-function setupMobileMenu() {
-  if (mobileMenuReady) {
-    return true;
+  const pageTargets = new Map([
+    ["build new brief", "Briefs"],
+    ["create agent brief", "Briefs"],
+    ["view live agents", "Agents"],
+    ["open calendar", "Calendar"],
+    ["run agents", "Briefs"],
+    ["open brief", "Briefs"],
+    ["view all launches", "Campaigns"],
+  ]);
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
-  const menuButton = document.querySelector(".mobile-menu");
-  const sidebar = document.querySelector(".sidebar");
+  function ensureCloseButton() {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar || sidebar.querySelector(`.${CLOSE_BUTTON_CLASS}`)) {
+      return;
+    }
 
-  if (!menuButton || !sidebar) {
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = CLOSE_BUTTON_CLASS;
+    closeButton.setAttribute("aria-label", "Close navigation");
+    closeButton.innerHTML = `<span>Close menu</span><strong aria-hidden="true">x</strong>`;
+    sidebar.insertBefore(closeButton, sidebar.firstChild);
+  }
+
+  function setMobileNav(open) {
+    ensureCloseButton();
+    document.body.classList.toggle(MOBILE_NAV_CLASS, open);
+    const menuButton = document.querySelector(".mobile-menu");
+    if (menuButton) {
+      menuButton.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
+  function toggleMobileNav() {
+    setMobileNav(!document.body.classList.contains(MOBILE_NAV_CLASS));
+  }
+
+  function closeMobileNav() {
+    setMobileNav(false);
+  }
+
+  function navigateWithSidebar(label) {
+    const target = normalizeText(label);
+    const matchingLink = Array.from(document.querySelectorAll(".side-link")).find(
+      (link) => normalizeText(link.textContent) === target,
+    );
+
+    if (matchingLink) {
+      matchingLink.click();
+      closeMobileNav();
+      return true;
+    }
+
+    window.location.hash = target.replace(/\s+/g, "-");
+    closeMobileNav();
     return false;
   }
 
-  mobileMenuReady = true;
-
-  let backdrop = document.querySelector(".mobile-backdrop");
-
-  if (!backdrop) {
-    backdrop = document.createElement("button");
-    backdrop.type = "button";
-    backdrop.className = "mobile-backdrop";
-    backdrop.setAttribute("aria-label", "Close navigation");
-    document.body.appendChild(backdrop);
-  }
-
-  const closeMenu = () => {
-    document.body.classList.remove("mobile-nav-open");
-    menuButton.setAttribute("aria-expanded", "false");
-  };
-
-  const openMenu = () => {
-    document.body.classList.add("mobile-nav-open");
-    menuButton.setAttribute("aria-expanded", "true");
-  };
-
-  menuButton.setAttribute("aria-controls", "mobile-navigation");
-  menuButton.setAttribute("aria-expanded", "false");
-  sidebar.id = "mobile-navigation";
-
-  menuButton.addEventListener("click", () => {
-    if (document.body.classList.contains("mobile-nav-open")) {
-      closeMenu();
-    } else {
-      openMenu();
+  document.addEventListener("click", (event) => {
+    const closeButton = event.target.closest(`.${CLOSE_BUTTON_CLASS}`);
+    if (closeButton) {
+      event.preventDefault();
+      closeMobileNav();
+      return;
     }
-  });
 
-  backdrop.addEventListener("click", closeMenu);
+    const menuButton = event.target.closest(".mobile-menu");
+    if (menuButton) {
+      event.preventDefault();
+      toggleMobileNav();
+      return;
+    }
 
-  sidebar.addEventListener("click", (event) => {
+    if (document.body.classList.contains(MOBILE_NAV_CLASS) && !event.target.closest(".sidebar") && !event.target.closest(".mobile-menu")) {
+      closeMobileNav();
+    }
+
     if (event.target.closest(".side-link")) {
-      closeMenu();
+      closeMobileNav();
+      return;
+    }
+
+    const clickable = event.target.closest("button, a");
+    if (!clickable || clickable.disabled || clickable.matches(".side-link") || clickable.matches(`.${CLOSE_BUTTON_CLASS}`)) {
+      return;
+    }
+
+    const targetPage = pageTargets.get(normalizeText(clickable.textContent));
+    if (targetPage) {
+      event.preventDefault();
+      navigateWithSidebar(targetPage);
     }
   });
 
-  window.addEventListener("keydown", (event) => {
+  document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      closeMenu();
+      closeMobileNav();
     }
   });
 
   window.addEventListener("resize", () => {
-    if (window.innerWidth > 980) {
-      closeMenu();
+    if (window.innerWidth > 1180) {
+      closeMobileNav();
     }
   });
 
-  return true;
-}
-
-function watchForMobileMenu() {
-  if (setupMobileMenu()) {
-    return;
-  }
-
-  const observer = new MutationObserver(() => {
-    if (setupMobileMenu()) {
-      observer.disconnect();
+  document.addEventListener("DOMContentLoaded", () => {
+    const menuButton = document.querySelector(".mobile-menu");
+    if (menuButton) {
+      menuButton.setAttribute("aria-expanded", "false");
+      menuButton.setAttribute("aria-controls", "mobile-navigation");
     }
-  });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-}
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) {
+      sidebar.id = "mobile-navigation";
+    }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", watchForMobileMenu);
-} else {
-  watchForMobileMenu();
-}
+    ensureCloseButton();
+  });
+})();
