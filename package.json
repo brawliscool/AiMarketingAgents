@@ -8,7 +8,6 @@
     "backend": "node server.mjs",
     "build": "vite build --config UI/vite.config.js",
     "preview": "vite preview --config UI/vite.config.js --host 127.0.0.1",
-    "test:deepseek-marketing-agent": "node scripts/run-deepseek-marketing-agent.mjs",
     "test": "node --test"
   },
   "dependencies": {
