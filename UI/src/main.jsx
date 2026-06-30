@@ -48,7 +48,7 @@ import { ContentApprovalQueue } from "./components/ContentApprovalQueue";
 import "./styles.css";
 import { discoverTrends } from "./trend-hunter/providers";
 import { loadSavedTrends, saveTrend } from "./trend-hunter/savedTrendsStore";
-import { trendCategories, trendFilterOptions, trendPlatforms } from "./trend-hunter/trendHunterData";
+import { enrichTrend, mockTrends, trendCategories, trendFilterOptions, trendPlatforms } from "./trend-hunter/trendHunterData";
 import { MarketingCalendarPage } from "./components/calendar/MarketingCalendarPage.jsx";
 import { TeamChatPage } from "./components/TeamChatPage.jsx";
 
@@ -1665,16 +1665,27 @@ function TrendHunterPage() {
   const [savedTrends, setSavedTrends] = useState([]);
   const [selectedTrendId, setSelectedTrendId] = useState("");
   const [storageStatus, setStorageStatus] = useState("Ready");
+  const [trendStatus, setTrendStatus] = useState("Scanning live adapters");
   const selectedTrend = trends.find((trend) => trend.id === selectedTrendId) || trends[0];
 
   useEffect(() => {
     let alive = true;
 
-    discoverTrends(filters).then((nextTrends) => {
-      if (!alive) return;
-      setTrends(nextTrends);
-      setSelectedTrendId((current) => (nextTrends.some((trend) => trend.id === current) ? current : nextTrends[0]?.id || ""));
-    });
+    setTrendStatus("Scanning live adapters");
+    discoverTrends(filters)
+      .then((nextTrends) => {
+        if (!alive) return;
+        setTrends(nextTrends);
+        setSelectedTrendId((current) => (nextTrends.some((trend) => trend.id === current) ? current : nextTrends[0]?.id || ""));
+        setTrendStatus(nextTrends.length ? "Live scan ready" : "No matching trends");
+      })
+      .catch(() => {
+        if (!alive) return;
+        const fallbackTrends = fallbackDiscoverTrends(filters);
+        setTrends(fallbackTrends);
+        setSelectedTrendId((current) => (fallbackTrends.some((trend) => trend.id === current) ? current : fallbackTrends[0]?.id || ""));
+        setTrendStatus("Showing offline trend data");
+      });
 
     return () => {
       alive = false;
@@ -1684,9 +1695,15 @@ function TrendHunterPage() {
   useEffect(() => {
     let alive = true;
 
-    loadSavedTrends().then((items) => {
-      if (alive) setSavedTrends(items);
-    });
+    loadSavedTrends()
+      .then((items) => {
+        if (alive) setSavedTrends(items);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSavedTrends([]);
+        setStorageStatus("Saved ideas unavailable");
+      });
 
     return () => {
       alive = false;
@@ -1696,9 +1713,13 @@ function TrendHunterPage() {
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
 
   const persistTrend = async (trend) => {
-    const result = await saveTrend(trend);
-    setSavedTrends((current) => [result.trend, ...current.filter((item) => item.id !== trend.id)].slice(0, 50));
-    setStorageStatus(`Saved to ${result.storage}`);
+    try {
+      const result = await saveTrend(trend);
+      setSavedTrends((current) => [result.trend, ...current.filter((item) => item.id !== trend.id)].slice(0, 50));
+      setStorageStatus(`Saved to ${result.storage}`);
+    } catch {
+      setStorageStatus("Could not save idea");
+    }
   };
 
   const categoryCounts = trendCategories.map((category) => ({
@@ -1734,7 +1755,7 @@ function TrendHunterPage() {
       <MotionPanel className="panel trend-filter-panel">
         <div className="panel-title">
           <h2>Signal filters</h2>
-          <span>{storageStatus}</span>
+          <span>{trendStatus} · {storageStatus}</span>
         </div>
         <div className="trend-filters">
           <TrendSelect label="Country" value={filters.country} options={["All Countries", ...trendFilterOptions.countries]} onChange={(value) => updateFilter("country", value)} />
@@ -1815,6 +1836,19 @@ function TrendHunterPage() {
 
 function trendProvidersLabel() {
   return trendPlatforms.length;
+}
+
+function fallbackDiscoverTrends(filters) {
+  return mockTrends
+    .filter((trend) => filters.platform === "All Platforms" || trend.platform === filters.platform || trend.suggestedPlatforms.includes(filters.platform))
+    .filter((trend) => [
+      ["country", trend.country],
+      ["state", trend.state],
+      ["city", trend.city],
+      ["industry", trend.industry],
+    ].every(([key, value]) => !filters[key] || filters[key].startsWith("All ") || value === filters[key]))
+    .map((trend) => enrichTrend({ ...trend, sourceProvider: "Offline Trend Data" }))
+    .sort((a, b) => b.score - a.score);
 }
 
 function TrendSelect({ label, value, options, onChange }) {
