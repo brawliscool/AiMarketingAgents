@@ -39,6 +39,7 @@ import {
   TrendUp,
   UploadSimple,
   UsersThree,
+  VideoCamera,
   Warning,
   XLogo,
 } from "@phosphor-icons/react";
