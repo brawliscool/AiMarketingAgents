@@ -102,11 +102,30 @@ Optional backend environment:
 
 ```bash
 OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_API_KEY=
+TEAM_CHAT_MODEL=gpt-4o-mini
 META_GRAPH_API_BASE_URL=https://graph.facebook.com/v25.0
 BACKEND_ADMIN_KEY=generate-at-least-32-random-characters
 TRUST_PROXY_HEADERS=false
 ENABLE_HSTS=false
 ```
+
+### DeepSeek marketing agent smoke test
+
+To test the marketing agent with a DeepSeek V4 Flash-compatible API key, keep the key in your shell environment and run:
+
+```bash
+DEEPSEEK_API_KEY=your-key npm run test:deepseek-marketing-agent -- "Create a launch campaign for HiveAI."
+```
+
+Optional overrides:
+
+```bash
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+The script prints the generated marketing output and redacts the key in logs.
 
 Privileged local-development endpoints (`/api/todos` and `/api/integrations/*`) are available only to loopback requests by default. If you expose the backend beyond localhost, set a strong `BACKEND_ADMIN_KEY` and send it as `Authorization: Bearer <key>` or `X-Backend-Admin-Key`; otherwise these endpoints fail closed. Only set `TRUST_PROXY_HEADERS=true` when a trusted reverse proxy controls `X-Forwarded-For`, and enable `ENABLE_HSTS=true` only behind HTTPS.
 
