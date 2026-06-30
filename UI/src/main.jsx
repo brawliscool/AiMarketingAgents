@@ -162,7 +162,6 @@ const publishingAccessFields = [
 ];
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8787";
-const dashboardPreviewSrc = `${import.meta.env.BASE_URL}hiveai-marketing-agents-hero.svg`;
 
 function useIntegrationStatus() {
   const [state, setState] = useState({ loading: true, integrations: [], error: "", scheduler: null });
@@ -2163,7 +2162,7 @@ function ProductMock() {
   return (
     <motion.div className="product-mock product-mock-image" aria-hidden="true" whileHover={{ rotateX: 2, rotateY: -4, scale: 1.015 }} transition={fastSpring}>
       <img
-        src={dashboardPreviewSrc}
+        src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
         alt=""
         className="product-mock-shot"
         loading="lazy"
@@ -2251,7 +2250,7 @@ function BottomCards() {
       <MotionPanel className="panel loading-card preview-image-card" aria-label="Loading preview">
         <div className="section-kicker">Loading preview</div>
         <img
-          src={dashboardPreviewSrc}
+          src={`${import.meta.env.BASE_URL}hiveai-dashboard-preview.png`}
           alt="HiveAI Marketing Agents dashboard preview"
           loading="lazy"
           decoding="async"
